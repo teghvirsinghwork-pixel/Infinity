@@ -502,7 +502,7 @@ async function handleCastleTvStream(
   return { streams };
 }
 
-async function getCastleTvImdbStreams(
+export async function getCastleTvImdbStreams(
   type: string,
   imdbId: string,
   title: string,
