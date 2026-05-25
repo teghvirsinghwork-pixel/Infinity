@@ -406,7 +406,7 @@ footer{border-top:1px solid var(--border);padding:40px 20px;position:relative;z-
       <span class="h1-line2">STREAMS</span>
     </h1>
 
-    <p class="hero-sub">9 premium providers. Movies, series & anime from Bollywood, Hollywood, South Indian, Hindi/Tamil/Telugu dubs and more — all in one click.</p>
+    <p class="hero-sub">11 premium providers. Movies, series & anime from Bollywood, Hollywood, South Indian, Hindi/Tamil/Telugu dubs and more — all in one click.</p>
 
     <div class="credit-tag">
       Made with <span style="color:#f43f5e;margin:0 2px">♥</span> by <a href="https://t.me/Master_si" target="_blank">@Master_si</a>
@@ -504,7 +504,7 @@ footer{border-top:1px solid var(--border);padding:40px 20px;position:relative;z-
     <div class="configure-box">
       <div class="configure-header">
         <span class="configure-title">Provider Selection</span>
-        <span class="selected-count" id="sel-count">9 / 9 selected</span>
+        <span class="selected-count" id="sel-count">11 / 11 selected</span>
       </div>
       <p class="configure-sub">Toggle providers below. The manifest URL updates in real time. Hit "Add to Stremio" when ready.</p>
 
@@ -628,13 +628,13 @@ footer{border-top:1px solid var(--border);padding:40px 20px;position:relative;z-
 <script>
 const BASE = ${JSON.stringify(base)};
 const PROVIDER_KEYS = ${JSON.stringify(PROVIDER_LIST)};
-let mask = Array(9).fill(1);
+let mask = Array(11).fill(1);
 
 function getMask() { return mask.join(""); }
 
 function buildManifestUrl() {
   const m = getMask();
-  if (m === "111111111") return BASE + "/api/manifest.json";
+  if (m === "11111111111") return BASE + "/api/manifest.json";
   return BASE + "/api/" + m + "/manifest.json";
 }
 
@@ -652,7 +652,7 @@ function updateUrls() {
   document.getElementById("custom-install-btn").href = sUrl;
 
   const sc = document.getElementById("sel-count");
-  sc.textContent = count + " / 9 selected";
+  sc.textContent = count + " / 11 selected";
   sc.style.color = count > 0 ? "" : "#f87171";
 }
 

@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import CryptoJS from "crypto-js";
+import { logger } from "../lib/logger.js";
 
 const PROVIDER_NAME = "ZinkMovies";
 let MAIN_URL = "https://new8.zinkmovies.biz";
@@ -42,7 +43,7 @@ async function fetchSafe(url: string, options: RequestInit = {}): Promise<Respon
     clearTimeout(timer);
     return res;
   } catch (e: any) {
-    console.error(`[${PROVIDER_NAME}] fetchSafe error: ${url.substring(0, 100)} -> ${e.message}`);
+    logger.error(`[${PROVIDER_NAME}] fetchSafe error: ${url.substring(0, 100)} -> ${e.message}`);
     return null;
   }
 }
@@ -120,13 +121,13 @@ async function getTMDBInfo(id: string, type: string): Promise<{ title: string; y
         return { title: tmdbType === "tv" ? data.name : data.title, year: (data.first_air_date || data.release_date || "").split("-")[0], imdbId };
       }
     }
-  } catch (e: any) { console.error(`[${PROVIDER_NAME}] TMDB error: ${e.message}`); }
+  } catch (e: any) { logger.error(`[${PROVIDER_NAME}] TMDB error: ${e.message}`); }
   return { title: idStr, year: "", imdbId: null };
 }
 
 async function searchSite(title: string): Promise<{ title: string; href: string; year: string | null }[]> {
   const url = `${MAIN_URL}/?s=${encodeURIComponent(title)}`;
-  console.log(`[${PROVIDER_NAME}] Search: ${url}`);
+  logger.info(`[${PROVIDER_NAME}] Search: ${url}`);
   const $ = await fetchHtml(url);
   if (!$) return [];
   const results: { title: string; href: string; year: string | null }[] = [];
@@ -144,7 +145,7 @@ async function searchSite(title: string): Promise<{ title: string; href: string;
     const year = (imgAlt.match(/\((\d{4})\)/) || slug.match(/-(\d{4})$/) || [null, null])[1];
     results.push({ title: itemTitle, href, year });
   });
-  console.log(`[${PROVIDER_NAME}] Found ${results.length} search results`);
+  logger.info(`[${PROVIDER_NAME}] Found ${results.length} search results`);
   return results;
 }
 
@@ -190,7 +191,7 @@ async function resolveEmbed(imdbId: string, label: string, isTv: boolean, season
   try {
     let playerUrl = `https://hrujo406fix.com/play/${imdbId}`;
     if (isTv && season && episode) playerUrl += `?s=${season}&e=${episode}`;
-    console.log(`[${PROVIDER_NAME}] Embed: fetching ${playerUrl}`);
+    logger.info(`[${PROVIDER_NAME}] Embed: fetching ${playerUrl}`);
     const res = await fetchSafe(playerUrl, { headers: { ...HEADERS, "Referer": `${MAIN_URL}/`, "Origin": MAIN_URL } });
     if (!res || !res.ok) return [];
     const html = await res.text();
@@ -253,7 +254,7 @@ async function resolveEmbed(imdbId: string, label: string, isTv: boolean, season
       }
       break;
     }
-  } catch (e: any) { console.error(`[${PROVIDER_NAME}] Embed fatal: ${e.message}`); }
+  } catch (e: any) { logger.error(`[${PROVIDER_NAME}] Embed fatal: ${e.message}`); }
   return [];
 }
 
@@ -261,20 +262,20 @@ async function resolveHubCloud(url: string, label: string, quality: string): Pro
   if (visitedUrls.has(url)) return [];
   visitedUrls.add(url);
   try {
-    console.log(`[${PROVIDER_NAME}] HubCloud: landing ${url.substring(0, 80)}`);
+    logger.info(`[${PROVIDER_NAME}] HubCloud: landing ${url.substring(0, 80)}`);
     const hubHeaders = { ...HEADERS, "Referer": `${MAIN_URL}/`, "Cookie": "xla=s4t" };
     const $ = await fetchHtml(url, { headers: hubHeaders });
-    if (!$) { console.log(`[${PROVIDER_NAME}] HubCloud: landing fetch failed`); return []; }
+    if (!$) { logger.info(`[${PROVIDER_NAME}] HubCloud: landing fetch failed`); return []; }
     const html = $.html();
 
     // Find bridge URL from JS: var url = '...'
     const varMatch = html.match(/var url\s*=\s*['"]([^'"]+)['"]/);
-    if (!varMatch) { console.log(`[${PROVIDER_NAME}] HubCloud: no bridge URL in landing page`); return []; }
+    if (!varMatch) { logger.info(`[${PROVIDER_NAME}] HubCloud: no bridge URL in landing page`); return []; }
     const bridgeUrl = varMatch[1];
-    console.log(`[${PROVIDER_NAME}] HubCloud: bridge -> ${bridgeUrl.substring(0, 100)}`);
+    logger.info(`[${PROVIDER_NAME}] HubCloud: bridge -> ${bridgeUrl.substring(0, 100)}`);
 
     const $b = await fetchHtml(bridgeUrl, { headers: { ...HEADERS, "Referer": url, "Cookie": "xla=s4t" } });
-    if (!$b) { console.log(`[${PROVIDER_NAME}] HubCloud: bridge fetch failed`); return []; }
+    if (!$b) { logger.info(`[${PROVIDER_NAME}] HubCloud: bridge fetch failed`); return []; }
 
     const bridgeHtml = $b.html();
     const headerText = $b("div.card-header").text().trim();
@@ -290,7 +291,7 @@ async function resolveHubCloud(url: string, label: string, quality: string): Pro
       if (pxlId) {
         // Use pixeldrain API for direct streaming
         const directUrl = `https://pixeldrain.com/api/file/${pxlId}`;
-        console.log(`[${PROVIDER_NAME}] HubCloud: pixeldrain stream found (${detectedQuality})`);
+        logger.info(`[${PROVIDER_NAME}] HubCloud: pixeldrain stream found (${detectedQuality})`);
         streams.push(makeStream(`ZinkCloud | ${detectedQuality}`, `${label} [Download]`, directUrl, detectedQuality, {}));
       }
     }
@@ -302,14 +303,14 @@ async function resolveHubCloud(url: string, label: string, quality: string): Pro
       if (!link) return;
       if (text.includes("fsl")) {
         const synced = `${link}1${new Date().getMinutes()}`;
-        console.log(`[${PROVIDER_NAME}] HubCloud: FSL link (${detectedQuality})`);
+        logger.info(`[${PROVIDER_NAME}] HubCloud: FSL link (${detectedQuality})`);
         streams.push(makeStream(`ZinkCloud FSL | ${detectedQuality}`, `${label} [FSL]`, synced, detectedQuality, { "Referer": bridgeUrl }));
       }
     });
 
-    console.log(`[${PROVIDER_NAME}] HubCloud: found ${streams.length} streams`);
+    logger.info(`[${PROVIDER_NAME}] HubCloud: found ${streams.length} streams`);
     return streams;
-  } catch (e: any) { console.error(`[${PROVIDER_NAME}] HubCloud error: ${e.message}`); return []; }
+  } catch (e: any) { logger.error(`[${PROVIDER_NAME}] HubCloud error: ${e.message}`); return []; }
 }
 
 async function resolveZinkCloud(url: string, label: string, quality: string): Promise<any[]> {
@@ -318,18 +319,18 @@ async function resolveZinkCloud(url: string, label: string, quality: string): Pr
   processedFiles.add(fileID);
   try {
     const domain = getOrigin(url);
-    console.log(`[${PROVIDER_NAME}] ZinkCloud: fileID=${fileID} quality=${quality}`);
+    logger.info(`[${PROVIDER_NAME}] ZinkCloud: fileID=${fileID} quality=${quality}`);
     const tokenData = await fetchJson(`${domain}/ajax_generate_token.php?random_id=${fileID}`, {
       method: "POST",
       headers: { ...HEADERS, "Referer": url, "X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded" },
       body: `random_id=${fileID}`,
     });
     if (!tokenData || tokenData.status !== "success" || !tokenData.token) {
-      console.log(`[${PROVIDER_NAME}] ZinkCloud: token failed`);
+      logger.info(`[${PROVIDER_NAME}] ZinkCloud: token failed`);
       return [];
     }
     const dlPageUrl = `${domain}/dl/${tokenData.token}`;
-    console.log(`[${PROVIDER_NAME}] ZinkCloud: fetching dl page`);
+    logger.info(`[${PROVIDER_NAME}] ZinkCloud: fetching dl page`);
     const [workerData, dlHtml] = await Promise.all([
       fetchJson(`${domain}/server-handler.php`, {
         method: "POST",
@@ -341,7 +342,7 @@ async function resolveZinkCloud(url: string, label: string, quality: string): Pr
     const streams: any[] = [];
     if (workerData && workerData.success && workerData.url) {
       // Worker URLs are served via Cloudflare Worker and don't play in Stremio — skip them.
-      console.log(`[${PROVIDER_NAME}] ZinkCloud: worker URL skipped (not playable)`);
+      logger.info(`[${PROVIDER_NAME}] ZinkCloud: worker URL skipped (not playable)`);
     }
     // Resolve HubCloud mirrors from dl page
     const hubLinks: string[] = [];
@@ -351,22 +352,22 @@ async function resolveZinkCloud(url: string, label: string, quality: string): Pr
         if (href) hubLinks.push(href);
       });
     }
-    console.log(`[${PROVIDER_NAME}] ZinkCloud: found ${hubLinks.length} hubcloud links on dl page`);
+    logger.info(`[${PROVIDER_NAME}] ZinkCloud: found ${hubLinks.length} hubcloud links on dl page`);
     if (hubLinks.length > 0) {
       const hubResults = await Promise.all(hubLinks.map((h) => resolveHubCloud(h, label, quality).catch(() => [])));
       hubResults.forEach((r) => streams.push(...(Array.isArray(r) ? r : [])));
     }
-    console.log(`[${PROVIDER_NAME}] ZinkCloud: returning ${streams.length} streams`);
+    logger.info(`[${PROVIDER_NAME}] ZinkCloud: returning ${streams.length} streams`);
     return streams;
-  } catch (e: any) { console.error(`[${PROVIDER_NAME}] ZinkCloud fatal: ${e.message}`); }
+  } catch (e: any) { logger.error(`[${PROVIDER_NAME}] ZinkCloud fatal: ${e.message}`); }
   return [];
 }
 
 async function extractFromPage(pageUrl: string, label: string, isTv: boolean, targetSeason?: number, targetEpisode?: number): Promise<any[]> {
   try {
-    console.log(`[${PROVIDER_NAME}] extractFromPage: ${pageUrl}`);
+    logger.info(`[${PROVIDER_NAME}] extractFromPage: ${pageUrl}`);
     const $ = await fetchHtml(pageUrl);
-    if (!$) { console.log(`[${PROVIDER_NAME}] extractFromPage: fetch failed`); return []; }
+    if (!$) { logger.info(`[${PROVIDER_NAME}] extractFromPage: fetch failed`); return []; }
     const collected: { href: string; text: string; quality: string }[] = [];
     $("a.movie-simple-button, a.btn").each((_: number, el: any) => {
       const href = $(el).attr("href") || "";
@@ -381,10 +382,10 @@ async function extractFromPage(pageUrl: string, label: string, isTv: boolean, ta
         collected.push({ href, text, quality });
       }
     });
-    console.log(`[${PROVIDER_NAME}] extractFromPage: found ${collected.length} buttons`);
+    logger.info(`[${PROVIDER_NAME}] extractFromPage: found ${collected.length} buttons`);
     const tasks = collected.map((btn) => () => {
       if (btn.href.includes("zinkcloud.net")) return resolveZinkCloud(btn.href, label, btn.quality);
-      console.log(`[${PROVIDER_NAME}] Skipping non-ZinkCloud link: ${btn.href.substring(0, 60)}`);
+      logger.info(`[${PROVIDER_NAME}] Skipping non-ZinkCloud link: ${btn.href.substring(0, 60)}`);
       return Promise.resolve([] as any[]);
     });
     const results: any[] = [];
@@ -393,7 +394,7 @@ async function extractFromPage(pageUrl: string, label: string, isTv: boolean, ta
       batch.forEach((r) => results.push(...(Array.isArray(r) ? r : r ? [r] : [])));
     }
     return results;
-  } catch (e: any) { console.error(`[${PROVIDER_NAME}] extractFromPage error: ${e.message}`); return []; }
+  } catch (e: any) { logger.error(`[${PROVIDER_NAME}] extractFromPage error: ${e.message}`); return []; }
 }
 
 export async function getStreams(tmdbId: string, mediaType: string, season?: number, episode?: number): Promise<any[]> {
@@ -403,7 +404,7 @@ export async function getStreams(tmdbId: string, mediaType: string, season?: num
     const info = await getTMDBInfo(tmdbId, mediaType);
     if (!info.title) return [];
     const isTv = mediaType === "tv" || mediaType === "series";
-    console.log(`[${PROVIDER_NAME}] Request: ID=${tmdbId} Type=${mediaType} S=${season} E=${episode}`);
+    logger.info(`[${PROVIDER_NAME}] Request: ID=${tmdbId} Type=${mediaType} S=${season} E=${episode}`);
     const safeSeason = season != null ? Number(season) : undefined;
     const safeEpisode = episode != null ? Number(episode) : undefined;
     const embedPromise = info.imdbId ? resolveEmbed(info.imdbId, info.title, isTv, safeSeason, safeEpisode) : Promise.resolve([]);
@@ -413,10 +414,10 @@ export async function getStreams(tmdbId: string, mediaType: string, season?: num
       const score = similarity(info.title, r.title, info.year);
       if (score > bestScore) { bestScore = score; bestMatch = r; }
     }
-    console.log(`[${PROVIDER_NAME}] Best match: ${bestMatch?.title || "none"} (score=${bestScore.toFixed(2)})`);
+    logger.info(`[${PROVIDER_NAME}] Best match: ${bestMatch?.title || "none"} (score=${bestScore.toFixed(2)})`);
     let pageStreams: any[] = [];
     if (bestMatch && bestScore > 0.3) pageStreams = await extractFromPage(bestMatch.href, info.title, isTv, safeSeason, safeEpisode);
     const embedStreams = await embedPromise;
     return dedupe([...embedStreams, ...pageStreams]);
-  } catch (e: any) { console.error(`[${PROVIDER_NAME}] Fatal: ${e.message}`); return []; }
+  } catch (e: any) { logger.error(`[${PROVIDER_NAME}] Fatal: ${e.message}`); return []; }
 }
