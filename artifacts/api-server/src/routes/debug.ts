@@ -1,4 +1,5 @@
 import { Router } from "express";
+import axios from "axios";
 import { getEntries, getResolveEvents, clearEntries } from "../lib/debug-log.js";
 import { PROVIDER_LIST } from "../lib/provider-config.js";
 
@@ -175,6 +176,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <span class="nav-badge">Debug Console</span>
   </div>
   <div class="nav-right">
+    <a class="nav-link" href="/api/debug/health">🩺 Health Check</a>
     <span class="refresh-tag">Auto-refresh 10s</span>
     <a class="nav-link" href="/api/">← Back to Home</a>
   </div>
@@ -236,6 +238,396 @@ tr:hover td{background:rgba(255,255,255,.02)}
 router.post("/debug/clear", (_req, res) => {
   clearEntries();
   res.redirect("/api/debug");
+});
+
+// ─── Provider health probe data endpoint ────────────────────────────────────
+
+interface ProbeResult {
+  provider: string;
+  movieStreams: number;
+  seriesStreams: number;
+  animeStreams: number;
+  totalStreams: number;
+  status: "ok" | "fail" | "partial";
+  probeMs: number;
+}
+
+const PROVIDER_PATTERNS: Record<string, RegExp> = {
+  animesalt:    /AnimeSalt/i,
+  rareanime:    /RareAnime/i,
+  animedekho:   /AnimeDekho/i,
+  netmirror:    /NetMirror/i,
+  streamflix:   /StreamFlix/i,
+  castletv:     /Castle\s*TV/i,
+  dahmermovies: /DahmerMovies/i,
+  hindmovies:   /HindMoviez/i,
+  moviebox:     /MovieBox/i,
+  hdhub4u:      /HDHub4U/i,
+  zinkmovies:   /ZinkMovies|ZinkCloud/i,
+};
+
+function countByProvider(streams: { name?: string }[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const s of streams) {
+    const name = s.name ?? "";
+    for (const [key, pat] of Object.entries(PROVIDER_PATTERNS)) {
+      if (pat.test(name)) {
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+        break;
+      }
+    }
+  }
+  return counts;
+}
+
+router.get("/debug/health/data", async (req, res) => {
+  const port = process.env["PORT"] ?? "5000";
+  const base = `http://localhost:${port}/api`;
+
+  const t0 = Date.now();
+  const [movieR, seriesR, animeR] = await Promise.allSettled([
+    axios.get<{ streams: { name?: string }[] }>(
+      `${base}/stream/movie/tt1375666.json`,   // Inception
+      { timeout: 40000 },
+    ),
+    axios.get<{ streams: { name?: string }[] }>(
+      `${base}/stream/series/tt0903747%3A1%3A1.json`, // Breaking Bad S01E01
+      { timeout: 40000 },
+    ),
+    axios.get<{ streams: { name?: string }[] }>(
+      `${base}/stream/series/tt0388629%3A1%3A1.json`,  // One Piece S01E01
+      { timeout: 40000 },
+    ),
+  ]);
+  const probeMs = Date.now() - t0;
+
+  const movieStreams  = movieR.status  === "fulfilled" ? (movieR.value.data.streams  ?? []) : [];
+  const seriesStreams = seriesR.status === "fulfilled" ? (seriesR.value.data.streams ?? []) : [];
+  const animeStreams  = animeR.status  === "fulfilled" ? (animeR.value.data.streams  ?? []) : [];
+
+  const movieCounts  = countByProvider(movieStreams);
+  const seriesCounts = countByProvider(seriesStreams);
+  const animeCounts  = countByProvider(animeStreams);
+
+  const results: ProbeResult[] = PROVIDER_LIST.map((p) => {
+    const m = movieCounts.get(p)  ?? 0;
+    const s = seriesCounts.get(p) ?? 0;
+    const a = animeCounts.get(p)  ?? 0;
+    const total = m + s + a;
+    const status: ProbeResult["status"] = total > 0 ? "ok" : "fail";
+    return { provider: p, movieStreams: m, seriesStreams: s, animeStreams: a, totalStreams: total, status, probeMs };
+  });
+
+  res.json({
+    probeMs,
+    checkedAt: new Date().toISOString(),
+    movieTotal:  movieStreams.length,
+    seriesTotal: seriesStreams.length,
+    animeTotal:  animeStreams.length,
+    results,
+  });
+});
+
+// ─── Health check HTML page ──────────────────────────────────────────────────
+
+router.get("/debug/health", (_req, res) => {
+  const providerMeta: Record<string, { emoji: string; label: string; types: string }> = {
+    animesalt:    { emoji: "⛩️",  label: "AnimeSalt",     types: "Anime" },
+    rareanime:    { emoji: "🌙",  label: "RareAnime",     types: "Anime" },
+    animedekho:   { emoji: "🇮🇳", label: "AnimeDekho",    types: "Anime" },
+    netmirror:    { emoji: "🌐",  label: "NetMirror",     types: "Movies · Series" },
+    streamflix:   { emoji: "🎬",  label: "StreamFlix",    types: "Movies · Series" },
+    castletv:     { emoji: "🏰",  label: "Castle TV",     types: "Movies · Series" },
+    dahmermovies: { emoji: "💀",  label: "DahmerMovies",  types: "Movies · Series" },
+    hindmovies:   { emoji: "🎞️", label: "HindMoviez",    types: "Movies · Series" },
+    moviebox:     { emoji: "🍿",  label: "MovieBox",      types: "Movies · Series" },
+    hdhub4u:      { emoji: "📡",  label: "HDHub4U",       types: "Movies · Series" },
+    zinkmovies:   { emoji: "🎥",  label: "ZinkMovies",    types: "Movies" },
+  };
+
+  const cards = PROVIDER_LIST.map((p) => {
+    const m = providerMeta[p] ?? { emoji: "🔌", label: p, types: "—" };
+    return `<div class="card" id="card-${p}" data-provider="${p}">
+  <div class="card-top">
+    <span class="card-emoji">${m.emoji}</span>
+    <span class="card-status idle" id="status-${p}">Idle</span>
+  </div>
+  <div class="card-name">${m.label}</div>
+  <div class="card-types">${m.types}</div>
+  <div class="card-streams" id="streams-${p}">—</div>
+  <div class="card-bar"><div class="card-bar-fill" id="bar-${p}" style="width:0%"></div></div>
+</div>`;
+  }).join("\n");
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>♾️ INFINITE STREAMS — Health Check</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08080f;--bg2:#0d0d1a;--bg3:#111120;--bg4:#13131f;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --accent:#7c5cfc;--accent2:#a78bfa;
+  --ok:#22d3a0;--fail:#f87171;--warn:#fb923c;--idle:#4a4870;
+  --text:#f0eeff;--text2:#9492b8;--text3:#4a4870;
+}
+html{-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;font-size:13px;min-height:100vh}
+
+/* NAV */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:rgba(8,8,16,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:10px}
+.nav-mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff}
+.nav-name{font-size:14px;font-weight:800;letter-spacing:-.03em}
+.nav-badge{font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(124,92,252,.12);border:1px solid rgba(124,92,252,.25);color:var(--accent2);font-weight:700}
+.nav-links{display:flex;align-items:center;gap:16px}
+.nav-link{font-size:11px;color:var(--text3);text-decoration:none;transition:color .15s}
+.nav-link:hover{color:var(--accent2)}
+
+/* MAIN */
+.main{max-width:1300px;margin:0 auto;padding:28px 24px}
+
+/* HERO */
+.hero{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:28px;flex-wrap:wrap}
+.hero-left h1{font-size:22px;font-weight:800;letter-spacing:-.04em;margin-bottom:4px}
+.hero-left p{font-size:12px;color:var(--text2);line-height:1.5;max-width:480px}
+.hero-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+
+/* STATS BAR */
+.stats{display:flex;gap:12px;margin-bottom:28px;flex-wrap:wrap}
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 18px;min-width:110px}
+.stat-val{font-size:24px;font-weight:800;letter-spacing:-.04em;color:var(--text)}
+.stat-lbl{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+
+/* RUN BUTTON */
+.run-btn{display:inline-flex;align-items:center;gap:7px;background:linear-gradient(135deg,var(--accent),#6d4fe8);color:#fff;border:none;padding:10px 22px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .15s,transform .1s;white-space:nowrap}
+.run-btn:hover{opacity:.9}
+.run-btn:active{transform:scale(.97)}
+.run-btn:disabled{opacity:.45;cursor:not-allowed}
+.run-btn .spin{display:none;animation:spin .7s linear infinite}
+.running .run-btn .spin{display:inline}
+.running .run-btn .icon{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* PROGRESS */
+.progress-wrap{margin-bottom:20px;display:none}
+.running .progress-wrap{display:block}
+.progress-track{height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-bottom:6px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width .4s ease;width:0%}
+.progress-label{font-size:11px;color:var(--text3)}
+
+/* GRID */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:32px}
+
+/* CARD */
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:5px;transition:border-color .3s,box-shadow .3s}
+.card.ok{border-color:rgba(34,211,160,.25);box-shadow:0 0 18px rgba(34,211,160,.06)}
+.card.fail{border-color:rgba(248,113,113,.2);box-shadow:0 0 18px rgba(248,113,113,.05)}
+.card.checking{border-color:rgba(124,92,252,.2)}
+.card-top{display:flex;align-items:center;justify-content:space-between}
+.card-emoji{font-size:22px;line-height:1}
+.card-status{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 8px;border-radius:999px}
+.card-status.idle{background:rgba(74,72,112,.18);color:var(--idle)}
+.card-status.checking{background:rgba(124,92,252,.12);color:var(--accent2)}
+.card-status.ok{background:rgba(34,211,160,.1);color:var(--ok)}
+.card-status.fail{background:rgba(248,113,113,.1);color:var(--fail)}
+.card-name{font-size:14px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+.card-types{font-size:10px;color:var(--text3)}
+.card-streams{font-size:12px;color:var(--text2);min-height:16px}
+.card-bar{height:2px;background:rgba(255,255,255,.05);border-radius:2px;margin-top:4px;overflow:hidden}
+.card-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--ok));border-radius:2px;transition:width .5s ease}
+
+/* TEST TITLES */
+.tests{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:28px}
+.tests h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:14px}
+.test-list{display:flex;flex-direction:column;gap:8px}
+.test-row{display:flex;align-items:center;gap:10px}
+.test-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em;min-width:54px;text-align:center}
+.test-badge.movie{background:rgba(99,102,241,.15);color:#818cf8}
+.test-badge.series{background:rgba(245,158,11,.12);color:#fbbf24}
+.test-badge.anime{background:rgba(34,211,160,.1);color:#34d399}
+.test-name{font-size:12px;color:var(--text2)}
+.test-id{font-size:11px;color:var(--text3);font-family:monospace}
+.test-count{margin-left:auto;font-size:12px;font-weight:700;color:var(--text3)}
+.test-count.has{color:var(--ok)}
+
+/* TIMESTAMP */
+.timestamp{font-size:11px;color:var(--text3);text-align:center;padding:8px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="nav-mark">♾</div>
+    <span class="nav-name">INFINITE STREAMS</span>
+    <span class="nav-badge">Health Check</span>
+  </div>
+  <div class="nav-links">
+    <a class="nav-link" href="/api/debug">← Debug Console</a>
+    <a class="nav-link" href="/api/">← Home</a>
+  </div>
+</nav>
+
+<div class="main" id="root">
+
+  <div class="hero">
+    <div class="hero-left">
+      <h1>Provider Health Check</h1>
+      <p>Probes all 11 providers with real test titles — a movie, a series, and an anime. Streams are attributed to each provider and shown below.</p>
+    </div>
+    <div class="hero-right">
+      <button class="run-btn" id="runBtn" onclick="runCheck()">
+        <span class="icon">▶ Run Check</span>
+        <span class="spin">⟳</span>&nbsp;Running…
+      </button>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat"><div class="stat-val" id="stat-total">—</div><div class="stat-lbl">Total Streams</div></div>
+    <div class="stat"><div class="stat-val" id="stat-ok">—</div><div class="stat-lbl">Providers OK</div></div>
+    <div class="stat"><div class="stat-val" id="stat-fail">—</div><div class="stat-lbl">Providers Down</div></div>
+    <div class="stat"><div class="stat-val" id="stat-time">—</div><div class="stat-lbl">Probe Time</div></div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap" id="progress">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel">Probing providers…</div>
+  </div>
+
+  <!-- TEST TITLES -->
+  <div class="tests">
+    <h3>Test Titles</h3>
+    <div class="test-list">
+      <div class="test-row">
+        <span class="test-badge movie">Movie</span>
+        <span class="test-name">Inception (2010)</span>
+        <span class="test-id">tt1375666</span>
+        <span class="test-count" id="tc-movie">—</span>
+      </div>
+      <div class="test-row">
+        <span class="test-badge series">Series</span>
+        <span class="test-name">Breaking Bad S01E01</span>
+        <span class="test-id">tt0903747:1:1</span>
+        <span class="test-count" id="tc-series">—</span>
+      </div>
+      <div class="test-row">
+        <span class="test-badge anime">Anime</span>
+        <span class="test-name">One Piece S01E01</span>
+        <span class="test-id">tt0388629:1:1</span>
+        <span class="test-count" id="tc-anime">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROVIDER GRID -->
+  <div class="grid" id="grid">
+${cards}
+  </div>
+
+  <div class="timestamp" id="ts"></div>
+
+</div>
+
+<script>
+async function runCheck() {
+  const btn = document.getElementById('runBtn');
+  const root = document.getElementById('root');
+  const fill = document.getElementById('progressFill');
+  const lbl  = document.getElementById('progressLabel');
+  btn.disabled = true;
+  root.classList.add('running');
+  fill.style.width = '5%';
+  lbl.textContent = 'Sending probes to all 11 providers…';
+
+  // reset cards
+  document.querySelectorAll('.card').forEach(c => {
+    c.className = 'card checking';
+    const p = c.dataset.provider;
+    document.getElementById('status-' + p).className = 'card-status checking';
+    document.getElementById('status-' + p).textContent = 'Checking';
+    document.getElementById('streams-' + p).textContent = '—';
+    document.getElementById('bar-' + p).style.width = '0%';
+  });
+
+  // animate fill while waiting
+  let pct = 5;
+  const ticker = setInterval(() => {
+    pct = Math.min(pct + (95 - pct) * 0.06, 92);
+    fill.style.width = pct + '%';
+  }, 600);
+
+  try {
+    const resp = await fetch('/api/debug/health/data');
+    const data = await resp.json();
+    clearInterval(ticker);
+    fill.style.width = '100%';
+
+    // update test counts
+    const tcm = document.getElementById('tc-movie');
+    const tcs = document.getElementById('tc-series');
+    const tca = document.getElementById('tc-anime');
+    tcm.textContent = data.movieTotal + ' streams';
+    tcs.textContent = data.seriesTotal + ' streams';
+    tca.textContent = data.animeTotal + ' streams';
+    if (data.movieTotal  > 0) tcm.classList.add('has');
+    if (data.seriesTotal > 0) tcs.classList.add('has');
+    if (data.animeTotal  > 0) tca.classList.add('has');
+
+    let okCount = 0, failCount = 0, totalStreams = 0;
+    const maxStreams = Math.max(...data.results.map(r => r.totalStreams), 1);
+
+    for (const r of data.results) {
+      const card   = document.getElementById('card-' + r.provider);
+      const status = document.getElementById('status-' + r.provider);
+      const stream = document.getElementById('streams-' + r.provider);
+      const bar    = document.getElementById('bar-' + r.provider);
+
+      card.className = 'card ' + r.status;
+      status.className = 'card-status ' + r.status;
+      status.textContent = r.status === 'ok' ? 'Online' : 'No streams';
+
+      const parts = [];
+      if (r.movieStreams  > 0) parts.push(r.movieStreams  + ' movie');
+      if (r.seriesStreams > 0) parts.push(r.seriesStreams + ' series');
+      if (r.animeStreams  > 0) parts.push(r.animeStreams  + ' anime');
+      stream.textContent = parts.length ? parts.join(' · ') : 'No streams found';
+
+      bar.style.width = Math.round((r.totalStreams / maxStreams) * 100) + '%';
+      if (r.status === 'ok') okCount++; else failCount++;
+      totalStreams += r.totalStreams;
+    }
+
+    document.getElementById('stat-total').textContent = totalStreams;
+    document.getElementById('stat-ok').textContent   = okCount + ' / 11';
+    document.getElementById('stat-fail').textContent  = failCount;
+    document.getElementById('stat-time').textContent  = (data.probeMs / 1000).toFixed(1) + 's';
+    document.getElementById('ts').textContent = 'Last checked: ' + new Date(data.checkedAt).toLocaleString();
+
+    lbl.textContent = 'Done — ' + okCount + ' of 11 providers returned streams.';
+    setTimeout(() => root.classList.remove('running'), 600);
+
+  } catch (e) {
+    clearInterval(ticker);
+    lbl.textContent = 'Probe failed: ' + e.message;
+    root.classList.remove('running');
+  }
+
+  btn.disabled = false;
+}
+
+// auto-run on load
+window.addEventListener('load', runCheck);
+</script>
+</body>
+</html>`);
 });
 
 export default router;
