@@ -327,6 +327,20 @@ async function fetchStreams(
   return streams;
 }
 
+function strictTitleScore(candidate: string, query: string): number {
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+  const nc = norm(candidate);
+  const nq = norm(query);
+  if (nc === nq) return 1.0;
+  const wc = new Set(nc.split(" ").filter(Boolean));
+  const wq = new Set(nq.split(" ").filter(Boolean));
+  if (wc.size === 0 || wq.size === 0) return 0;
+  const intersection = [...wq].filter((w) => wc.has(w)).length;
+  const union = new Set([...wc, ...wq]).size;
+  return intersection / union;
+}
+
 async function findCastleTvMatch(
   title: string,
   year: number | undefined,
@@ -338,32 +352,37 @@ async function findCastleTvMatch(
 
     if (rows.length === 0) return null;
 
-    type ScoredRow = { row: SearchResultItem; score: number };
+    type ScoredRow = { row: SearchResultItem; baseScore: number; finalScore: number };
     const scored: ScoredRow[] = rows
       .filter((r) => mapMovieType(r.movieType) === type)
       .map((row) => {
-        let score = titleSimilarity(row.title ?? "", title);
+        const baseScore = strictTitleScore(row.title ?? "", title);
+        let finalScore = baseScore;
         if (year && row.publishTime) {
           const rowYear = new Date(row.publishTime).getFullYear();
-          if (rowYear === year) score += 0.2;
-          else if (Math.abs(rowYear - year) === 1) score += 0.1;
+          if (rowYear === year) finalScore += 0.2;
+          else if (Math.abs(rowYear - year) === 1) finalScore += 0.1;
         }
-        return { row, score };
+        return { row, baseScore, finalScore };
       });
 
     if (scored.length === 0) return null;
 
-    scored.sort((a, b) => b.score - a.score);
+    scored.sort((a, b) => b.finalScore - a.finalScore);
     const best = scored[0]!;
 
-    if (best.score < 0.65) {
-      logger.info({ title, bestMatch: best.row.title, score: best.score }, "castle-tv: no confident match, skipping");
+    if (best.baseScore < 0.75) {
+      logger.info(
+        { title, bestMatch: best.row.title, baseScore: best.baseScore, finalScore: best.finalScore },
+        "castle-tv: no confident match, skipping",
+      );
       return null;
     }
 
-    if (best.score < 0.8) {
-      logger.warn({ title, bestMatch: best.row.title, score: best.score }, "castle-tv: low confidence title match");
-    }
+    logger.info(
+      { title, bestMatch: best.row.title, baseScore: best.baseScore, finalScore: best.finalScore },
+      "castle-tv: matched",
+    );
 
     const movieId = String(best.row.id);
     const detailsResult = await getMovieDetails(movieId);

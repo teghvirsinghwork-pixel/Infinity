@@ -103,6 +103,18 @@ function parseLinks(html: string): ParsedLink[] {
   return links;
 }
 
+function parseSizeGB(sizeStr: string | null): number | null {
+  if (!sizeStr) return null;
+  const m = sizeStr.match(/([\d.]+)\s*(GB|MB|TB)/i);
+  if (!m) return null;
+  const num = parseFloat(m[1]!);
+  const unit = m[2]!.toUpperCase();
+  if (unit === "TB") return num * 1024;
+  if (unit === "GB") return num;
+  if (unit === "MB") return num / 1024;
+  return null;
+}
+
 function qualityLabel(str: string): string {
   const lower = str.toLowerCase();
   const codecs: string[] = [];
@@ -280,6 +292,13 @@ export async function fetchDahmerStreams(
       return [];
     }
 
+    filtered = filtered.filter((p) => parseSizeGB(p.size) === null || parseSizeGB(p.size)! <= 15);
+
+    if (!filtered.length) {
+      logger.info({ dirUrl }, "dahmermovies: all files too large (>15GB), skipping");
+      return [];
+    }
+
     const rawResults: DahmerStream[] = filtered.map((p) => {
       let url: string;
       try {
@@ -294,11 +313,15 @@ export async function fetchDahmerStreams(
       const ql = qualityLabel(p.text);
       const t = tags(p.text);
       const sz = p.size ? ` [${p.size}]` : "";
+      const isDirect = url.includes("a.111477.xyz");
       return {
         url,
         name: "DahmerMovies",
         title: `DahmerMovies — ${ql}${sz}${t ? " • " + t : ""}`,
-        behaviorHints: { notWebReady: true },
+        behaviorHints: {
+          notWebReady: true,
+          ...(isDirect ? { headers: { Referer: "https://a.111477.xyz/" } } : {}),
+        },
       };
     });
 
