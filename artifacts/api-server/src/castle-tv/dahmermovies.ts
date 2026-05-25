@@ -7,6 +7,79 @@ const TIMEOUT = 25000;
 const LISTING_TTL = 60 * 60 * 1000;
 const CDN_TTL = 6 * 60 * 60 * 1000;
 
+// --- Rate-limit-safe request queue ---
+// Serialises all outbound requests to a.111477.xyz with a minimum gap between
+// them.  Concurrent callers queue up and each waits its turn.
+const MIN_INTERVAL_MS = 600; // ms between consecutive requests
+let lastRequestAt = 0;
+let queuedCount = 0;
+
+async function queuedGet(url: string): Promise<string> {
+  queuedCount++;
+  try {
+    const now = Date.now();
+    const wait = Math.max(0, lastRequestAt + MIN_INTERVAL_MS - now);
+    if (wait > 0) await sleep(wait);
+    lastRequestAt = Date.now();
+
+    return await fetchWithBackoff(url);
+  } finally {
+    queuedCount--;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function fetchWithBackoff(url: string, attempt = 0): Promise<string> {
+  const MAX_ATTEMPTS = 4;
+  try {
+    const res = await axios.get<string>(url, {
+      timeout: TIMEOUT,
+      headers: BROWSER_HEADERS,
+    });
+    return res.data;
+  } catch (err: unknown) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      if (status === 404 || status === 403) {
+        throw err; // not retriable
+      }
+      if (status === 429 && attempt < MAX_ATTEMPTS) {
+        const retryAfter = parseInt(
+          String(err.response?.headers["retry-after"] ?? "0"),
+          10,
+        );
+        const backoff = Math.max(retryAfter * 1000, (2 ** attempt) * 1200);
+        logger.warn(
+          { url, attempt, backoff },
+          "dahmermovies: 429 – backing off",
+        );
+        await sleep(backoff);
+        lastRequestAt = Date.now();
+        return fetchWithBackoff(url, attempt + 1);
+      }
+      if (status && status >= 500 && attempt < MAX_ATTEMPTS) {
+        const backoff = (2 ** attempt) * 800;
+        logger.warn(
+          { url, status, attempt, backoff },
+          "dahmermovies: server error – retrying",
+        );
+        await sleep(backoff);
+        lastRequestAt = Date.now();
+        return fetchWithBackoff(url, attempt + 1);
+      }
+    }
+    throw err;
+  }
+}
+
+// In-flight deduplication: if the same URL is already being fetched, share the
+// same promise rather than launching a second HTTP request.
+const inFlight = new Map<string, Promise<string | null>>();
+
+// --- Caches ---
 const listingCache = new Map<string, { html: string; ts: number }>();
 const cdnCache = new Map<string, { cdnUrl: string; ts: number }>();
 
@@ -161,42 +234,32 @@ async function fetchListing(dirUrl: string): Promise<string | null> {
     return cached.html;
   }
 
-  const doFetch = async (): Promise<string> => {
-    const res = await axios.get<string>(dirUrl, {
-      timeout: TIMEOUT,
-      headers: BROWSER_HEADERS,
-    });
-    return res.data;
-  };
-
-  try {
-    const html = await doFetch();
-    listingCache.set(dirUrl, { html, ts: Date.now() });
-    return html;
-  } catch (err: unknown) {
-    if (axios.isAxiosError(err)) {
-      const status = err.response?.status;
-      if (status === 404 || status === 403) {
-        return null;
-      }
-      if (status === 429) {
-        const retryAfter = parseInt(
-          String(err.response?.headers["retry-after"] ?? "5"),
-          10,
-        );
-        logger.warn({ dirUrl, retryAfter }, "dahmermovies: 429, retrying after delay");
-        await new Promise((r) => setTimeout(r, (retryAfter + 1) * 1000));
-        try {
-          const html = await doFetch();
-          listingCache.set(dirUrl, { html, ts: Date.now() });
-          return html;
-        } catch {
-          return null;
-        }
-      }
-    }
-    throw err;
+  // Deduplicate concurrent requests for the same URL
+  const existing = inFlight.get(dirUrl);
+  if (existing) {
+    logger.debug({ dirUrl }, "dahmermovies: joining in-flight request");
+    return existing;
   }
+
+  const promise: Promise<string | null> = (async () => {
+    try {
+      const html = await queuedGet(dirUrl);
+      listingCache.set(dirUrl, { html, ts: Date.now() });
+      return html;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const status = err.response?.status;
+        if (status === 404 || status === 403) return null;
+      }
+      logger.warn({ err, dirUrl }, "dahmermovies: listing fetch failed");
+      return null;
+    } finally {
+      inFlight.delete(dirUrl);
+    }
+  })();
+
+  inFlight.set(dirUrl, promise);
+  return promise;
 }
 
 async function findDirUrl(variants: string[]): Promise<{ url: string; html: string } | null> {
@@ -263,7 +326,10 @@ export async function fetchDahmerStreams(
         ? buildMovieUrlVariants(title, yearNum)
         : buildTvUrlVariants(title, season);
 
-    logger.info({ title, year, season, variants: variants.slice(0, 3) }, "dahmermovies: trying variants");
+    logger.info(
+      { title, year, season, variants: variants.slice(0, 3), queued: queuedCount },
+      "dahmermovies: trying variants",
+    );
 
     const found = await findDirUrl(variants);
     if (!found) {
