@@ -1773,7 +1773,7 @@ router.get("/stream/:type/:id.json", async (req, res) => {
       if (dmResult.status === "rejected") logger.error({ err: dmResult.reason, imdbId }, "DahmerMovies: crashed");
       if (sfResult.status === "rejected") logger.error({ err: sfResult.reason, imdbId }, "StreamFlix: crashed");
 
-      const raw = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...mbStreams, ...hmStreams, ...hdStreams, ...zmStreams, ...ctStreams, ...dmStreams, ...sfStreams]) as Record<string, unknown>[]);
+      const raw = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...sfStreams, ...ctStreams, ...dmStreams, ...hmStreams, ...mbStreams, ...hdStreams, ...zmStreams]) as Record<string, unknown>[]);
       const combined = premiumFormat(raw, meta.title, contentType, season, episode);
       logger.info(
         { imdbId, title: meta.title, as: asStreams.length, ra: raStreams.length, ad: adStreams.length, nm: nmStreams.length, mb: mbStreams.length, hm: hmStreams.length, hd: hdStreams.length, zm: zmStreams.length, ct: ctStreams.length, dm: dmStreams.length, sf: sfStreams.length, combined: combined.length },
@@ -1850,7 +1850,7 @@ router.get("/stream/:type/:id.json", async (req, res) => {
       if (dmResult.status === "rejected") logger.error({ err: dmResult.reason, tmdbId: numericTmdbId }, "DahmerMovies: crashed");
       if (sfResult.status === "rejected") logger.error({ err: sfResult.reason, tmdbId: numericTmdbId }, "StreamFlix: crashed");
 
-      const raw2 = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...mbStreams, ...hmStreams, ...hdStreams, ...zmStreams, ...ctStreams, ...dmStreams, ...sfStreams]) as Record<string, unknown>[]);
+      const raw2 = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...sfStreams, ...ctStreams, ...dmStreams, ...hmStreams, ...mbStreams, ...hdStreams, ...zmStreams]) as Record<string, unknown>[]);
       const combined = premiumFormat(raw2, meta.title, contentType, season, episode);
       logger.info(
         { tmdbId: numericTmdbId, title: meta.title, as: asStreams.length, ra: raStreams.length, ad: adStreams.length, nm: nmStreams.length, mb: mbStreams.length, hm: hmStreams.length, hd: hdStreams.length, zm: zmStreams.length, ct: ctStreams.length, dm: dmStreams.length, sf: sfStreams.length, combined: combined.length },
