@@ -292,10 +292,10 @@ export async function fetchDahmerStreams(
       return [];
     }
 
-    filtered = filtered.filter((p) => parseSizeGB(p.size) === null || parseSizeGB(p.size)! <= 15);
+    filtered = filtered.filter((p) => parseSizeGB(p.size) === null || parseSizeGB(p.size)! <= 23);
 
     if (!filtered.length) {
-      logger.info({ dirUrl }, "dahmermovies: all files too large (>15GB), skipping");
+      logger.info({ dirUrl }, "dahmermovies: all files too large (>23GB), skipping");
       return [];
     }
 
