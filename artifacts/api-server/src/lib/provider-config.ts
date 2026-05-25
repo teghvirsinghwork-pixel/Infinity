@@ -6,13 +6,13 @@
  *   1 = rareanime
  *   2 = animedekho
  *   3 = netmirror
- *   4 = moviebox
- *   5 = hindmovies
- *   6 = hdhub4u
- *   7 = zinkmovies
- *   8 = castletv
- *   9 = dahmermovies
- *  10 = streamflix
+ *   4 = streamflix
+ *   5 = castletv
+ *   6 = dahmermovies
+ *   7 = hindmovies
+ *   8 = moviebox
+ *   9 = hdhub4u
+ *  10 = zinkmovies
  *
  * The config mask is an 11-character string of '0' or '1'.
  * '1' means enabled, '0' means disabled.
@@ -24,13 +24,13 @@ export const PROVIDER_LIST = [
   "rareanime",
   "animedekho",
   "netmirror",
-  "moviebox",
-  "hindmovies",
-  "hdhub4u",
-  "zinkmovies",
+  "streamflix",
   "castletv",
   "dahmermovies",
-  "streamflix",
+  "hindmovies",
+  "moviebox",
+  "hdhub4u",
+  "zinkmovies",
 ] as const;
 
 export type ProviderKey = (typeof PROVIDER_LIST)[number];

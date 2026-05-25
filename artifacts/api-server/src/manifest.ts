@@ -10,13 +10,13 @@ export const manifest = {
     "🌙 RareAnime India — Hindi & Tamil dubbed anime (rareanimes.buzz + animetoonhindi).\n" +
     "🇮🇳 AnimeDekho — Hindi/Tamil/Telugu dubbed anime via 15+ extractors.\n" +
     "🌐 NetMirror — 1080p mirrors of Netflix, Prime Video & Hotstar.\n" +
-    "🍿 MovieBox — Multi-audio: Hindi, Bengali, English & more.\n" +
-    "🎞️ HindMoviez — Bollywood, Hollywood & Hindi-dubbed in 480p–4K.\n" +
-    "📡 HDHub4U — Bollywood & Hollywood: Blu-Ray, IMAX & WebDL.\n" +
-    "🎥 ZinkMovies — Bollywood, South Indian & multi-lang in 4K.\n" +
+    "🎬 StreamFlix — Multi-audio & multilingual streaming library.\n" +
     "🏰 Castle TV — Tamil/Hindi/English multi-language streams.\n" +
     "💀 DahmerMovies — High-quality 1080p/4K direct file streams.\n" +
-    "🎬 StreamFlix — Multi-audio & multilingual streaming library.\n" +
+    "🎞️ HindMoviez — Bollywood, Hollywood & Hindi-dubbed in 480p–4K.\n" +
+    "🍿 MovieBox — Multi-audio: Hindi, Bengali, English & more.\n" +
+    "📡 HDHub4U — Bollywood & Hollywood: Blu-Ray, IMAX & WebDL.\n" +
+    "🎥 ZinkMovies — Bollywood, South Indian & multi-lang in 4K.\n" +
     "Supports IMDB, TMDB & Cinemeta IDs. | By @Master_si",
   logo: "https://i.imgur.com/YPqM5vW.png",
   background: "https://i.imgur.com/f4Rj2Qp.jpg",
@@ -186,5 +186,5 @@ export const CATALOG_MAP: Record<string, string> = {
 };
 
 // Provider config — order must match PROVIDER_LIST in lib/provider-config.ts
-// Index: 0=animesalt 1=rareanime 2=animedekho 3=netmirror 4=moviebox 5=hindmovies 6=hdhub4u 7=zinkmovies 8=castletv 9=dahmermovies 10=streamflix
+// Index: 0=animesalt 1=rareanime 2=animedekho 3=netmirror 4=streamflix 5=castletv 6=dahmermovies 7=hindmovies 8=moviebox 9=hdhub4u 10=zinkmovies
 export const ALL_ENABLED_MASK = "11111111111";
