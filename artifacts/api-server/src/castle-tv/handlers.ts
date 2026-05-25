@@ -356,7 +356,12 @@ async function findCastleTvMatch(
     scored.sort((a, b) => b.score - a.score);
     const best = scored[0]!;
 
-    if (best.score < 0.4) {
+    if (best.score < 0.65) {
+      logger.info({ title, bestMatch: best.row.title, score: best.score }, "castle-tv: no confident match, skipping");
+      return null;
+    }
+
+    if (best.score < 0.8) {
       logger.warn({ title, bestMatch: best.row.title, score: best.score }, "castle-tv: low confidence title match");
     }
 

@@ -16,6 +16,56 @@ interface ParsedLink {
   size: string | null;
 }
 
+function cleanTitle(title: string): string {
+  return title
+    .replace(/:/g, "")
+    .replace(/['']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanTitleDash(title: string): string {
+  return title
+    .replace(/:/g, " -")
+    .replace(/['']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildMovieUrlVariants(title: string, year: number | null): string[] {
+  const t1 = cleanTitle(title);
+  const t2 = cleanTitleDash(title);
+  const variants: string[] = [];
+
+  const addVariant = (t: string, y: number | null) => {
+    const folder = y ? `${t} (${y})` : t;
+    variants.push(`${DAHMER_API}/movies/${encodeURIComponent(folder)}/`);
+  };
+
+  if (year) {
+    addVariant(t1, year);
+    if (t2 !== t1) addVariant(t2, year);
+    addVariant(t1, year + 1);
+    addVariant(t1, year - 1);
+    if (t2 !== t1) addVariant(t2, year + 1);
+    if (t2 !== t1) addVariant(t2, year - 1);
+  }
+  addVariant(t1, null);
+  if (t2 !== t1) addVariant(t2, null);
+
+  return [...new Set(variants)];
+}
+
+function buildTvUrlVariants(title: string, season: number): string[] {
+  const t1 = cleanTitle(title);
+  const t2 = cleanTitleDash(title);
+  const variants: string[] = [
+    `${DAHMER_API}/tvs/${encodeURIComponent(t1)}/Season ${season}/`,
+  ];
+  if (t2 !== t1) variants.push(`${DAHMER_API}/tvs/${encodeURIComponent(t2)}/Season ${season}/`);
+  return [...new Set(variants)];
+}
+
 function parseLinks(html: string): ParsedLink[] {
   const links: ParsedLink[] = [];
   const rowRegex = /<tr[^>]*>(.*?)<\/tr>/gis;
@@ -30,7 +80,9 @@ function parseLinks(html: string): ParsedLink[] {
     if (!text || href === "../" || text === "../") continue;
 
     let size: string | null = null;
-    const sizeCell = row.match(/<td[^>]*class=["'][^"']*size[^"']*["'][^>]*(?:data-sort=["']\d+["'][^>]*)?>([^<]+)<\/td>/i);
+    const sizeCell = row.match(
+      /<td[^>]*class=["'][^"']*size[^"']*["'][^>]*(?:data-sort=["']\d+["'][^>]*)?>([^<]+)<\/td>/i,
+    );
     if (sizeCell) {
       const cellText = sizeCell[1]!.trim();
       if (cellText && cellText !== "-") size = cellText;
@@ -77,7 +129,8 @@ function tags(str: string): string {
 const BROWSER_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
-  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
   "Accept-Language": "en-US,en;q=0.9",
   "Accept-Encoding": "gzip, deflate, br",
   "Cache-Control": "no-cache",
@@ -89,14 +142,14 @@ const BROWSER_HEADERS = {
   "Upgrade-Insecure-Requests": "1",
 };
 
-async function fetchListing(dirUrl: string): Promise<string> {
+async function fetchListing(dirUrl: string): Promise<string | null> {
   const cached = listingCache.get(dirUrl);
   if (cached && Date.now() - cached.ts < LISTING_TTL) {
     logger.debug({ dirUrl }, "dahmermovies: listing cache hit");
     return cached.html;
   }
 
-  const doFetch = async () => {
+  const doFetch = async (): Promise<string> => {
     const res = await axios.get<string>(dirUrl, {
       timeout: TIMEOUT,
       headers: BROWSER_HEADERS,
@@ -109,16 +162,40 @@ async function fetchListing(dirUrl: string): Promise<string> {
     listingCache.set(dirUrl, { html, ts: Date.now() });
     return html;
   } catch (err: unknown) {
-    if (axios.isAxiosError(err) && err.response?.status === 429) {
-      const retryAfter = parseInt(String(err.response.headers["retry-after"] ?? "5"), 10);
-      logger.warn({ dirUrl, retryAfter }, "dahmermovies: 429 rate limited, retrying");
-      await new Promise((r) => setTimeout(r, (retryAfter + 1) * 1000));
-      const html = await doFetch();
-      listingCache.set(dirUrl, { html, ts: Date.now() });
-      return html;
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      if (status === 404 || status === 403) {
+        return null;
+      }
+      if (status === 429) {
+        const retryAfter = parseInt(
+          String(err.response?.headers["retry-after"] ?? "5"),
+          10,
+        );
+        logger.warn({ dirUrl, retryAfter }, "dahmermovies: 429, retrying after delay");
+        await new Promise((r) => setTimeout(r, (retryAfter + 1) * 1000));
+        try {
+          const html = await doFetch();
+          listingCache.set(dirUrl, { html, ts: Date.now() });
+          return html;
+        } catch {
+          return null;
+        }
+      }
     }
     throw err;
   }
+}
+
+async function findDirUrl(variants: string[]): Promise<{ url: string; html: string } | null> {
+  for (const url of variants) {
+    const html = await fetchListing(url);
+    if (html !== null) {
+      logger.info({ url }, "dahmermovies: found folder");
+      return { url, html };
+    }
+  }
+  return null;
 }
 
 async function resolveCdnUrl(fileUrl: string): Promise<string> {
@@ -167,18 +244,22 @@ export async function fetchDahmerStreams(
   episode: number | null,
 ): Promise<DahmerStream[]> {
   try {
-    let dirUrl: string;
-    if (season === null) {
-      const dir = `${title.replace(/:/g, "")} (${year})`;
-      dirUrl = `${DAHMER_API}/movies/${encodeURIComponent(dir)}/`;
-    } else {
-      const show = title.replace(/:/g, " -");
-      dirUrl = `${DAHMER_API}/tvs/${encodeURIComponent(show)}/Season ${season}/`;
+    const yearNum = year !== null ? parseInt(String(year), 10) : null;
+
+    const variants =
+      season === null
+        ? buildMovieUrlVariants(title, yearNum)
+        : buildTvUrlVariants(title, season);
+
+    logger.info({ title, year, season, variants: variants.slice(0, 3) }, "dahmermovies: trying variants");
+
+    const found = await findDirUrl(variants);
+    if (!found) {
+      logger.info({ title, year, season }, "dahmermovies: no matching folder found");
+      return [];
     }
 
-    logger.info({ dirUrl }, "dahmermovies: fetching");
-
-    const html = await fetchListing(dirUrl);
+    const { url: dirUrl, html } = found;
     const links = parseLinks(html);
 
     let filtered: ParsedLink[];
@@ -187,18 +268,17 @@ export async function fetchDahmerStreams(
     } else {
       const ss = season < 10 ? `0${season}` : `${season}`;
       const ee =
-        episode !== null
-          ? episode < 10
-            ? `0${episode}`
-            : `${episode}`
-          : null;
+        episode !== null ? (episode < 10 ? `0${episode}` : `${episode}`) : null;
       const pat = ee
         ? new RegExp(`S${ss}E${ee}`, "i")
         : new RegExp(`S${ss}`, "i");
       filtered = links.filter((p) => pat.test(p.text));
     }
 
-    if (!filtered.length) return [];
+    if (!filtered.length) {
+      logger.info({ dirUrl, season, episode }, "dahmermovies: no matching files in folder");
+      return [];
+    }
 
     const rawResults: DahmerStream[] = filtered.map((p) => {
       let url: string;
