@@ -49,3 +49,36 @@ export function clearEntries(): void {
   proxyEntries.splice(0);
   resolveEvents.splice(0);
 }
+
+// ─── Per-provider error tracking ─────────────────────────────────────────────
+
+export interface ProviderErrorEntry {
+  message: string;
+  time: string;
+  count: number;
+}
+
+const providerErrors = new Map<string, ProviderErrorEntry>();
+
+export function logProviderError(provider: string, error: unknown): void {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : JSON.stringify(error);
+  const existing = providerErrors.get(provider);
+  providerErrors.set(provider, {
+    message: message.slice(0, 400),
+    time: new Date().toISOString(),
+    count: (existing?.count ?? 0) + 1,
+  });
+}
+
+export function getProviderErrors(): Record<string, ProviderErrorEntry> {
+  return Object.fromEntries(providerErrors.entries());
+}
+
+export function clearProviderErrors(): void {
+  providerErrors.clear();
+}

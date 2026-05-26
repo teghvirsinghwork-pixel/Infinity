@@ -68,7 +68,7 @@ import {
 } from "../lib/moviebox-api.js";
 import { encodeParam, prewarmAsRelay } from "./proxy.js";
 import { logger } from "../lib/logger.js";
-import { logResolve } from "../lib/debug-log.js";
+import { logResolve, logProviderError } from "../lib/debug-log.js";
 import {
   getStreamCache,
   setStreamCache,
@@ -620,6 +620,7 @@ async function getHDHub4UStreams(
     return streams.map(hd4uStreamToStremio);
   } catch (err) {
     logger.error({ err, id }, "HDHub4U: provider error");
+    logProviderError("hdhub4u", err);
     return [];
   }
 }
@@ -637,6 +638,7 @@ async function getZinkMoviesStreams(
     return await zinkmoviesStreams(imdbId, mediaType, season, episode);
   } catch (err) {
     logger.error({ err, imdbId }, "ZinkMovies: provider error");
+    logProviderError("zinkmovies", err);
     return [];
   }
 }
@@ -676,6 +678,7 @@ async function getAnimeSaltStreams(
     });
   } catch (err) {
     logger.error({ err, imdbId }, "AnimeSalt: provider error");
+    logProviderError("animesalt", err);
     return [];
   }
 }
@@ -697,6 +700,7 @@ async function getCastleTvStreams(
     return streams as unknown as Record<string, unknown>[];
   } catch (err) {
     logger.error({ err, imdbId }, "CastleTV: provider error");
+    logProviderError("castletv", err);
     return [];
   }
 }
@@ -715,6 +719,7 @@ async function getDahmerMoviesStreams(
     return streams as unknown as Record<string, unknown>[];
   } catch (err) {
     logger.error({ err, title }, "DahmerMovies: provider error");
+    logProviderError("dahmermovies", err);
     return [];
   }
 }
@@ -735,6 +740,7 @@ async function getStreamflixStreams(
     return streams as unknown as Record<string, unknown>[];
   } catch (err) {
     logger.error({ err, tmdbId }, "StreamFlix: provider error");
+    logProviderError("streamflix", err);
     return [];
   }
 }
@@ -753,6 +759,7 @@ async function get4KHDHubStreams(
     return streams as unknown as Record<string, unknown>[];
   } catch (err) {
     logger.error({ err, title }, "4KHDHub: provider error");
+    logProviderError("fourkdhub", err);
     return [];
   }
 }
@@ -1061,6 +1068,7 @@ async function getAnimeDekhoStreams(
     }
   } catch (err) {
     logger.error({ title, err }, "AnimeDekho: getAnimeDekhoStreams error");
+    logProviderError("animedekho", err);
     return [];
   }
 }
@@ -1128,6 +1136,7 @@ async function getAnimeDekhoNativeStreams(
     }
   } catch (err) {
     logger.error({ stremioId, err }, "AnimeDekho: native stream error");
+    logProviderError("animedekho", err);
     return [];
   }
 }
@@ -1303,6 +1312,7 @@ async function getMovieBoxStreams(
     return fetchMovieBoxById(subjectId, mbSeason, mbEpisode, req, logKey);
   } catch (err) {
     logger.error({ err, imdbId: meta.imdbId }, "MovieBox: provider error");
+    logProviderError("moviebox", err);
     return [];
   }
 }
@@ -1562,6 +1572,7 @@ async function getRareAnimeStreamsByTitle(
     return getRareAnimeNativeStreams(newId, type, req);
   } catch (err) {
     logger.error({ err, title }, "RareAnime: title-based stream error");
+    logProviderError("rareanime", err);
     return [];
   }
 }
@@ -1805,18 +1816,18 @@ router.get("/stream/:type/:id.json", async (req, res) => {
       const sfStreams = sfResult.status === "fulfilled" ? sfResult.value : [];
       const fkStreams = fkResult.status === "fulfilled" ? fkResult.value : [];
 
-      if (asResult.status === "rejected") logger.error({ err: asResult.reason, imdbId }, "AnimeSalt: crashed");
-      if (raResult.status === "rejected") logger.error({ err: raResult.reason, imdbId }, "RareAnime: crashed");
-      if (adResult.status === "rejected") logger.error({ err: adResult.reason, imdbId }, "AnimeDekho: crashed");
-      if (nmResult.status === "rejected") logger.error({ err: nmResult.reason, imdbId }, "NetMirror: crashed");
-      if (mbResult.status === "rejected") logger.error({ err: mbResult.reason, imdbId }, "MovieBox: crashed");
-      if (hmResult.status === "rejected") logger.error({ err: hmResult.reason, imdbId }, "HindMoviez: crashed");
-      if (hdResult.status === "rejected") logger.error({ err: hdResult.reason, imdbId }, "HDHub4U: crashed");
-      if (zmResult.status === "rejected") logger.error({ err: zmResult.reason, imdbId }, "ZinkMovies: crashed");
-      if (ctResult.status === "rejected") logger.error({ err: ctResult.reason, imdbId }, "CastleTV: crashed");
-      if (dmResult.status === "rejected") logger.error({ err: dmResult.reason, imdbId }, "DahmerMovies: crashed");
-      if (sfResult.status === "rejected") logger.error({ err: sfResult.reason, imdbId }, "StreamFlix: crashed");
-      if (fkResult.status === "rejected") logger.error({ err: fkResult.reason, imdbId }, "4KHDHub: crashed");
+      if (asResult.status === "rejected") { logger.error({ err: asResult.reason, imdbId }, "AnimeSalt: crashed"); logProviderError("animesalt", asResult.reason); }
+      if (raResult.status === "rejected") { logger.error({ err: raResult.reason, imdbId }, "RareAnime: crashed"); logProviderError("rareanime", raResult.reason); }
+      if (adResult.status === "rejected") { logger.error({ err: adResult.reason, imdbId }, "AnimeDekho: crashed"); logProviderError("animedekho", adResult.reason); }
+      if (nmResult.status === "rejected") { logger.error({ err: nmResult.reason, imdbId }, "NetMirror: crashed"); logProviderError("netmirror", nmResult.reason); }
+      if (mbResult.status === "rejected") { logger.error({ err: mbResult.reason, imdbId }, "MovieBox: crashed"); logProviderError("moviebox", mbResult.reason); }
+      if (hmResult.status === "rejected") { logger.error({ err: hmResult.reason, imdbId }, "HindMoviez: crashed"); logProviderError("hindmovies", hmResult.reason); }
+      if (hdResult.status === "rejected") { logger.error({ err: hdResult.reason, imdbId }, "HDHub4U: crashed"); logProviderError("hdhub4u", hdResult.reason); }
+      if (zmResult.status === "rejected") { logger.error({ err: zmResult.reason, imdbId }, "ZinkMovies: crashed"); logProviderError("zinkmovies", zmResult.reason); }
+      if (ctResult.status === "rejected") { logger.error({ err: ctResult.reason, imdbId }, "CastleTV: crashed"); logProviderError("castletv", ctResult.reason); }
+      if (dmResult.status === "rejected") { logger.error({ err: dmResult.reason, imdbId }, "DahmerMovies: crashed"); logProviderError("dahmermovies", dmResult.reason); }
+      if (sfResult.status === "rejected") { logger.error({ err: sfResult.reason, imdbId }, "StreamFlix: crashed"); logProviderError("streamflix", sfResult.reason); }
+      if (fkResult.status === "rejected") { logger.error({ err: fkResult.reason, imdbId }, "4KHDHub: crashed"); logProviderError("fourkdhub", fkResult.reason); }
 
       const raw = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...sfStreams, ...ctStreams, ...dmStreams, ...mbStreams, ...hmStreams, ...fkStreams, ...hdStreams, ...zmStreams]) as Record<string, unknown>[]);
       const combined = premiumFormat(raw, meta.title, contentType, season, episode);
@@ -1885,18 +1896,18 @@ router.get("/stream/:type/:id.json", async (req, res) => {
       const sfStreams = sfResult.status === "fulfilled" ? sfResult.value : [];
       const fkStreams = fkResult.status === "fulfilled" ? fkResult.value : [];
 
-      if (asResult.status === "rejected") logger.error({ err: asResult.reason, tmdbId: numericTmdbId }, "AnimeSalt: crashed");
-      if (raResult.status === "rejected") logger.error({ err: raResult.reason, tmdbId: numericTmdbId }, "RareAnime: crashed");
-      if (adResult.status === "rejected") logger.error({ err: adResult.reason, tmdbId: numericTmdbId }, "AnimeDekho: crashed");
-      if (nmResult.status === "rejected") logger.error({ err: nmResult.reason, tmdbId: numericTmdbId }, "NetMirror: crashed");
-      if (mbResult.status === "rejected") logger.error({ err: mbResult.reason, tmdbId: numericTmdbId }, "MovieBox: crashed");
-      if (hmResult.status === "rejected") logger.error({ err: hmResult.reason, tmdbId: numericTmdbId }, "HindMoviez: crashed");
-      if (hdResult.status === "rejected") logger.error({ err: hdResult.reason, tmdbId: numericTmdbId }, "HDHub4U: crashed");
-      if (zmResult.status === "rejected") logger.error({ err: zmResult.reason, tmdbId: numericTmdbId }, "ZinkMovies: crashed");
-      if (ctResult.status === "rejected") logger.error({ err: ctResult.reason, tmdbId: numericTmdbId }, "CastleTV: crashed");
-      if (dmResult.status === "rejected") logger.error({ err: dmResult.reason, tmdbId: numericTmdbId }, "DahmerMovies: crashed");
-      if (sfResult.status === "rejected") logger.error({ err: sfResult.reason, tmdbId: numericTmdbId }, "StreamFlix: crashed");
-      if (fkResult.status === "rejected") logger.error({ err: fkResult.reason, tmdbId: numericTmdbId }, "4KHDHub: crashed");
+      if (asResult.status === "rejected") { logger.error({ err: asResult.reason, tmdbId: numericTmdbId }, "AnimeSalt: crashed"); logProviderError("animesalt", asResult.reason); }
+      if (raResult.status === "rejected") { logger.error({ err: raResult.reason, tmdbId: numericTmdbId }, "RareAnime: crashed"); logProviderError("rareanime", raResult.reason); }
+      if (adResult.status === "rejected") { logger.error({ err: adResult.reason, tmdbId: numericTmdbId }, "AnimeDekho: crashed"); logProviderError("animedekho", adResult.reason); }
+      if (nmResult.status === "rejected") { logger.error({ err: nmResult.reason, tmdbId: numericTmdbId }, "NetMirror: crashed"); logProviderError("netmirror", nmResult.reason); }
+      if (mbResult.status === "rejected") { logger.error({ err: mbResult.reason, tmdbId: numericTmdbId }, "MovieBox: crashed"); logProviderError("moviebox", mbResult.reason); }
+      if (hmResult.status === "rejected") { logger.error({ err: hmResult.reason, tmdbId: numericTmdbId }, "HindMoviez: crashed"); logProviderError("hindmovies", hmResult.reason); }
+      if (hdResult.status === "rejected") { logger.error({ err: hdResult.reason, tmdbId: numericTmdbId }, "HDHub4U: crashed"); logProviderError("hdhub4u", hdResult.reason); }
+      if (zmResult.status === "rejected") { logger.error({ err: zmResult.reason, tmdbId: numericTmdbId }, "ZinkMovies: crashed"); logProviderError("zinkmovies", zmResult.reason); }
+      if (ctResult.status === "rejected") { logger.error({ err: ctResult.reason, tmdbId: numericTmdbId }, "CastleTV: crashed"); logProviderError("castletv", ctResult.reason); }
+      if (dmResult.status === "rejected") { logger.error({ err: dmResult.reason, tmdbId: numericTmdbId }, "DahmerMovies: crashed"); logProviderError("dahmermovies", dmResult.reason); }
+      if (sfResult.status === "rejected") { logger.error({ err: sfResult.reason, tmdbId: numericTmdbId }, "StreamFlix: crashed"); logProviderError("streamflix", sfResult.reason); }
+      if (fkResult.status === "rejected") { logger.error({ err: fkResult.reason, tmdbId: numericTmdbId }, "4KHDHub: crashed"); logProviderError("fourkdhub", fkResult.reason); }
 
       const raw2 = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...sfStreams, ...ctStreams, ...dmStreams, ...mbStreams, ...hmStreams, ...fkStreams, ...hdStreams, ...zmStreams]) as Record<string, unknown>[]);
       const combined = premiumFormat(raw2, meta.title, contentType, season, episode);

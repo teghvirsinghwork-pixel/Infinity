@@ -1,6 +1,6 @@
 import { Router } from "express";
 import axios from "axios";
-import { getEntries, getResolveEvents, clearEntries } from "../lib/debug-log.js";
+import { getEntries, getResolveEvents, clearEntries, getProviderErrors } from "../lib/debug-log.js";
 import { PROVIDER_LIST } from "../lib/provider-config.js";
 
 const router = Router();
@@ -250,6 +250,9 @@ interface ProbeResult {
   totalStreams: number;
   status: "ok" | "fail" | "partial";
   probeMs: number;
+  lastError?: string;
+  lastErrorTime?: string;
+  errorCount?: number;
 }
 
 const PROVIDER_PATTERNS: Record<string, RegExp> = {
@@ -310,13 +313,25 @@ router.get("/debug/health/data", async (req, res) => {
   const seriesCounts = countByProvider(seriesStreams);
   const animeCounts  = countByProvider(animeStreams);
 
+  const providerErrors = getProviderErrors();
+
   const results: ProbeResult[] = PROVIDER_LIST.map((p) => {
     const m = movieCounts.get(p)  ?? 0;
     const s = seriesCounts.get(p) ?? 0;
     const a = animeCounts.get(p)  ?? 0;
     const total = m + s + a;
     const status: ProbeResult["status"] = total > 0 ? "ok" : "fail";
-    return { provider: p, movieStreams: m, seriesStreams: s, animeStreams: a, totalStreams: total, status, probeMs };
+    const errEntry = providerErrors[p];
+    return {
+      provider: p,
+      movieStreams: m,
+      seriesStreams: s,
+      animeStreams: a,
+      totalStreams: total,
+      status,
+      probeMs,
+      ...(errEntry ? { lastError: errEntry.message, lastErrorTime: errEntry.time, errorCount: errEntry.count } : {}),
+    };
   });
 
   res.json({
@@ -358,6 +373,7 @@ router.get("/debug/health", (_req, res) => {
   <div class="card-types">${m.types}</div>
   <div class="card-streams" id="streams-${p}">—</div>
   <div class="card-bar"><div class="card-bar-fill" id="bar-${p}" style="width:0%"></div></div>
+  <div class="card-error" id="error-${p}" style="display:none"></div>
 </div>`;
   }).join("\n");
 
@@ -442,6 +458,9 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,
 .card-streams{font-size:12px;color:var(--text2);min-height:16px}
 .card-bar{height:2px;background:rgba(255,255,255,.05);border-radius:2px;margin-top:4px;overflow:hidden}
 .card-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--ok));border-radius:2px;transition:width .5s ease}
+.card-error{margin-top:8px;padding:7px 9px;border-radius:7px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.18);font-size:10px;color:#f87171;font-family:'SF Mono',ui-monospace,monospace;line-height:1.5;word-break:break-word;white-space:pre-wrap}
+.card-error-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(248,113,113,.55);margin-bottom:3px}
+.card-error-count{font-size:9px;color:rgba(248,113,113,.5);margin-top:4px}
 
 /* TEST TITLES */
 .tests{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:28px}
@@ -539,6 +558,10 @@ ${cards}
 </div>
 
 <script>
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 async function runCheck() {
   const btn = document.getElementById('runBtn');
   const root = document.getElementById('root');
@@ -605,6 +628,21 @@ async function runCheck() {
       bar.style.width = Math.round((r.totalStreams / maxStreams) * 100) + '%';
       if (r.status === 'ok') okCount++; else failCount++;
       totalStreams += r.totalStreams;
+
+      const errBox = document.getElementById('error-' + r.provider);
+      if (errBox) {
+        if (r.status !== 'ok' && r.lastError) {
+          const timeStr = r.lastErrorTime ? new Date(r.lastErrorTime).toLocaleTimeString() : '';
+          const countStr = r.errorCount > 1 ? r.errorCount + ' errors' : '1 error';
+          errBox.innerHTML =
+            '<div class="card-error-label">⚠ Last Error</div>' +
+            escHtml(r.lastError) +
+            '<div class="card-error-count">' + countStr + (timeStr ? ' · ' + timeStr : '') + '</div>';
+          errBox.style.display = 'block';
+        } else {
+          errBox.style.display = 'none';
+        }
+      }
     }
 
     document.getElementById('stat-total').textContent = totalStreams;
