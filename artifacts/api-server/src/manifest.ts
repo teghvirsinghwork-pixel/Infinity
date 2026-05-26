@@ -13,11 +13,11 @@ export const manifest = {
     "🎬 StreamFlix — Multi-audio & multilingual streaming library.\n" +
     "🏰 Castle TV — Tamil/Hindi/English multi-language streams.\n" +
     "💀 DahmerMovies — High-quality 1080p/4K direct file streams.\n" +
-    "🎞️ HindMoviez — Bollywood, Hollywood & Hindi-dubbed in 480p–4K.\n" +
     "🍿 MovieBox — Multi-audio: Hindi, Bengali, English & more.\n" +
+    "🎞️ HindMoviez — Bollywood, Hollywood & Hindi-dubbed in 480p–4K.\n" +
+    "🔷 4KHDHub — 4K/1080p HubCloud & HubDrive direct file streams.\n" +
     "📡 HDHub4U — Bollywood & Hollywood: Blu-Ray, IMAX & WebDL.\n" +
     "🎥 ZinkMovies — Bollywood, South Indian & multi-lang in 4K.\n" +
-    "🔷 4KHDHub — 4K/1080p HubCloud & HubDrive direct file streams.\n" +
     "Supports IMDB, TMDB & Cinemeta IDs. | By @Master_si",
   logo: "https://i.imgur.com/YPqM5vW.png",
   background: "https://i.imgur.com/f4Rj2Qp.jpg",

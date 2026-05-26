@@ -204,7 +204,7 @@ function serveLandingPage(req: express.Request, res: express.Response) {
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="description" content="INFINITE STREAMS — 12 providers, one addon. AnimeSalt, RareAnime, AnimeDekho, NetMirror, StreamFlix, Castle TV, DahmerMovies, HindMoviez, MovieBox, HDHub4U, ZinkMovies, 4KHDHub. Install in one click."/>
+<meta name="description" content="INFINITE STREAMS — 12 providers, one addon. AnimeSalt, RareAnime, AnimeDekho, NetMirror, StreamFlix, Castle TV, DahmerMovies, MovieBox, HindMoviez, 4KHDHub, HDHub4U, ZinkMovies. Install in one click."/>
 <title>INFINITE STREAMS — Stremio Addon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&display=swap" rel="stylesheet"/>
