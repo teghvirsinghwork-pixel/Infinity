@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: infinite-streams
+    runtime: node
+    plan: free
+    buildCommand: npm install -g pnpm@10.26.1 && pnpm install --frozen-lockfile && pnpm --filter @workspace/api-server run build
+    startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/healthz
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Auto-generated secret for session signing — Render creates this once and keeps it stable.
+      - key: SESSION_SECRET
+        generateValue: true
+
+      # TMDB API key — required for the "INFINITE STREAMS" movies/series catalog.
+      # Get a free key at https://www.themoviedb.org/settings/api
+      - key: TMDB_API_KEY
+        sync: false
+
+      # Set this to your Render app URL (e.g. https://infinite-streams.onrender.com)
+      # so the NetMirror proxy returns correct stream URLs.
+      - key: PUBLIC_URL
+        sync: false
+
+      # Optional: override the HDHub4U base URL if the default stops working.
+      # Default: https://new1.hdhub4u.limo
+      - key: HDHUB4U_URL
+        sync: false
