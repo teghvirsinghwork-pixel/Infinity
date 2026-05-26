@@ -13,10 +13,11 @@
  *   8 = moviebox
  *   9 = hdhub4u
  *  10 = zinkmovies
+ *  11 = fourkdhub
  *
- * The config mask is an 11-character string of '0' or '1'.
+ * The config mask is a 12-character string of '0' or '1'.
  * '1' means enabled, '0' means disabled.
- * "11111111111" = all providers enabled (default).
+ * "111111111111" = all providers enabled (default).
  */
 
 export const PROVIDER_LIST = [
@@ -31,11 +32,12 @@ export const PROVIDER_LIST = [
   "moviebox",
   "hdhub4u",
   "zinkmovies",
+  "fourkdhub",
 ] as const;
 
 export type ProviderKey = (typeof PROVIDER_LIST)[number];
 
-export const ALL_PROVIDERS_MASK = "11111111111";
+export const ALL_PROVIDERS_MASK = "111111111111";
 
 export function parseProviderConfig(config: string): Set<ProviderKey> {
   const enabled = new Set<ProviderKey>();

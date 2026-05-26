@@ -152,6 +152,15 @@ function serveLandingPage(req: express.Request, res: express.Response) {
       tags: ["Bollywood", "South", "Multi-Lang", "4K"],
       desc: "Bollywood, Hollywood & South Indian content with AES-encrypted embed support.",
     },
+    {
+      key: "fourkdhub",
+      name: "4KHDHub",
+      emoji: "🔷",
+      color: "#0ea5e9",
+      glow: "rgba(14,165,233,0.3)",
+      tags: ["4K", "1080p", "HubCloud", "Direct Files"],
+      desc: "4K and 1080p direct file streams via HubCloud and HubDrive with quality filtering.",
+    },
   ];
 
   const providerCards = providers
@@ -195,7 +204,7 @@ function serveLandingPage(req: express.Request, res: express.Response) {
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="description" content="INFINITE STREAMS — 11 providers, one addon. AnimeSalt, RareAnime, AnimeDekho, NetMirror, MovieBox, HindMoviez, HDHub4U, ZinkMovies, Castle TV, DahmerMovies, StreamFlix. Install in one click."/>
+<meta name="description" content="INFINITE STREAMS — 12 providers, one addon. AnimeSalt, RareAnime, AnimeDekho, NetMirror, StreamFlix, Castle TV, DahmerMovies, HindMoviez, MovieBox, HDHub4U, ZinkMovies, 4KHDHub. Install in one click."/>
 <title>INFINITE STREAMS — Stremio Addon</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&display=swap" rel="stylesheet"/>
@@ -406,7 +415,7 @@ footer{border-top:1px solid var(--border);padding:40px 20px;position:relative;z-
       <span class="h1-line2">STREAMS</span>
     </h1>
 
-    <p class="hero-sub">11 premium providers. Movies, series & anime from Bollywood, Hollywood, South Indian, Hindi/Tamil/Telugu dubs and more — all in one click.</p>
+    <p class="hero-sub">12 premium providers. Movies, series & anime from Bollywood, Hollywood, South Indian, Hindi/Tamil/Telugu dubs and more — all in one click.</p>
 
     <div class="credit-tag">
       Made with <span style="color:#f43f5e;margin:0 2px">♥</span> by <a href="https://t.me/Master_si" target="_blank">@Master_si</a>
@@ -477,7 +486,7 @@ footer{border-top:1px solid var(--border);padding:40px 20px;position:relative;z-
         <div class="step-num-big">3</div>
         <div class="step-icon">🎬</div>
         <div class="step-title">Start watching</div>
-        <p class="step-body">Search any movie, series or anime. INFINITE STREAMS queries all 11 providers in parallel and shows every available stream.</p>
+        <p class="step-body">Search any movie, series or anime. INFINITE STREAMS queries all 12 providers in parallel and shows every available stream.</p>
         <span class="step-code">Results in seconds</span>
       </div>
     </div>
@@ -504,7 +513,7 @@ footer{border-top:1px solid var(--border);padding:40px 20px;position:relative;z-
     <div class="configure-box">
       <div class="configure-header">
         <span class="configure-title">Provider Selection</span>
-        <span class="selected-count" id="sel-count">11 / 11 selected</span>
+        <span class="selected-count" id="sel-count">12 / 12 selected</span>
       </div>
       <p class="configure-sub">Toggle providers below. The manifest URL updates in real time. Hit "Add to Stremio" when ready.</p>
 
@@ -597,7 +606,7 @@ footer{border-top:1px solid var(--border);padding:40px 20px;position:relative;z-
       <div class="footer-mark">♾</div>
       <span class="footer-name">INFINITE STREAMS</span>
     </div>
-    <p class="footer-desc">11 providers, zero compromise. Movies, series &amp; anime from every corner of the web. Free forever.</p>
+    <p class="footer-desc">12 providers, zero compromise. Movies, series &amp; anime from every corner of the web. Free forever.</p>
     <div class="footer-links">
       <a href="${defaultManifestUrl}" target="_blank">manifest.json</a>
       <a href="${base}/api/debug">Debug Console</a>
@@ -616,7 +625,7 @@ footer{border-top:1px solid var(--border);padding:40px 20px;position:relative;z-
     <div class="sticky-logo">♾</div>
     <div>
       <div class="sticky-bar-title">INFINITE STREAMS</div>
-      <div class="sticky-bar-sub">11 providers, one addon</div>
+      <div class="sticky-bar-sub">12 providers, one addon</div>
     </div>
   </div>
   <a href="${stremioUrl}" class="sticky-install" id="sticky-install-btn">
@@ -628,13 +637,13 @@ footer{border-top:1px solid var(--border);padding:40px 20px;position:relative;z-
 <script>
 const BASE = ${JSON.stringify(base)};
 const PROVIDER_KEYS = ${JSON.stringify(PROVIDER_LIST)};
-let mask = Array(11).fill(1);
+let mask = Array(12).fill(1);
 
 function getMask() { return mask.join(""); }
 
 function buildManifestUrl() {
   const m = getMask();
-  if (m === "11111111111") return BASE + "/api/manifest.json";
+  if (m === "111111111111") return BASE + "/api/manifest.json";
   return BASE + "/api/" + m + "/manifest.json";
 }
 
@@ -652,7 +661,7 @@ function updateUrls() {
   document.getElementById("custom-install-btn").href = sUrl;
 
   const sc = document.getElementById("sel-count");
-  sc.textContent = count + " / 11 selected";
+  sc.textContent = count + " / 12 selected";
   sc.style.color = count > 0 ? "" : "#f87171";
 }
 
