@@ -1,5 +1,6 @@
 import axios from "axios";
 import { logger } from "../lib/logger.js";
+import { logProviderError } from "../lib/debug-log.js";
 
 const DAHMER_API = "https://a.111477.xyz";
 const BULK_PROXY = "https://p.111477.xyz/bulk";
@@ -34,43 +35,47 @@ function sleep(ms: number): Promise<void> {
 
 async function fetchWithBackoff(url: string, attempt = 0): Promise<string> {
   const MAX_ATTEMPTS = 4;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT);
   try {
-    const res = await axios.get<string>(url, {
-      timeout: TIMEOUT,
+    const res = await fetch(url, {
       headers: BROWSER_HEADERS,
+      signal: ctrl.signal,
+      redirect: "follow",
     });
-    return res.data;
-  } catch (err: unknown) {
-    if (axios.isAxiosError(err)) {
-      const status = err.response?.status;
-      if (status === 404 || status === 403) {
-        throw err; // not retriable
-      }
-      if (status === 429 && attempt < MAX_ATTEMPTS) {
-        const retryAfter = parseInt(
-          String(err.response?.headers["retry-after"] ?? "0"),
-          10,
-        );
-        const backoff = Math.max(retryAfter * 1000, (2 ** attempt) * 1200);
-        logger.warn(
-          { url, attempt, backoff },
-          "dahmermovies: 429 – backing off",
-        );
-        await sleep(backoff);
-        lastRequestAt = Date.now();
-        return fetchWithBackoff(url, attempt + 1);
-      }
-      if (status && status >= 500 && attempt < MAX_ATTEMPTS) {
-        const backoff = (2 ** attempt) * 800;
-        logger.warn(
-          { url, status, attempt, backoff },
-          "dahmermovies: server error – retrying",
-        );
-        await sleep(backoff);
-        lastRequestAt = Date.now();
-        return fetchWithBackoff(url, attempt + 1);
-      }
+    clearTimeout(timer);
+
+    if (res.status === 404) {
+      const err = new Error(`HTTP 404`);
+      (err as NodeJS.ErrnoException).code = "404";
+      throw err;
     }
+    if (res.status === 403) {
+      const err = new Error(`HTTP 403`);
+      (err as NodeJS.ErrnoException).code = "403";
+      throw err;
+    }
+    if (res.status === 429 && attempt < MAX_ATTEMPTS) {
+      const retryAfter = parseInt(res.headers.get("retry-after") ?? "0", 10);
+      const backoff = Math.max(retryAfter * 1000, (2 ** attempt) * 1200);
+      logger.warn({ url, attempt, backoff }, "dahmermovies: 429 – backing off");
+      await sleep(backoff);
+      lastRequestAt = Date.now();
+      return fetchWithBackoff(url, attempt + 1);
+    }
+    if (res.status >= 500 && attempt < MAX_ATTEMPTS) {
+      const backoff = (2 ** attempt) * 800;
+      logger.warn({ url, status: res.status, attempt, backoff }, "dahmermovies: server error – retrying");
+      await sleep(backoff);
+      lastRequestAt = Date.now();
+      return fetchWithBackoff(url, attempt + 1);
+    }
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    return res.text();
+  } catch (err: unknown) {
+    clearTimeout(timer);
     throw err;
   }
 }
@@ -211,15 +216,18 @@ function tags(str: string): string {
   return m ? m[1]!.replace(/\./g, " ").trim() : "";
 }
 
-const BROWSER_HEADERS = {
+const BROWSER_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
   Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
   "Accept-Language": "en-US,en;q=0.9",
-  "Accept-Encoding": "gzip, deflate, br",
+  "Accept-Encoding": "gzip, deflate, br, zstd",
   "Cache-Control": "no-cache",
-  Pragma: "no-cache",
+  "Pragma": "no-cache",
+  "Sec-Ch-Ua": '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+  "Sec-Ch-Ua-Mobile": "?0",
+  "Sec-Ch-Ua-Platform": '"Windows"',
   "Sec-Fetch-Dest": "document",
   "Sec-Fetch-Mode": "navigate",
   "Sec-Fetch-Site": "none",
@@ -244,13 +252,21 @@ async function fetchListing(dirUrl: string): Promise<string | null> {
   const promise: Promise<string | null> = (async () => {
     try {
       const html = await queuedGet(dirUrl);
+      if (html.includes("Just a moment") || html.includes("_cf_chl_opt") || (html.includes("cloudflare") && html.includes("challenge"))) {
+        logProviderError("dahmermovies", `Cloudflare block on ${dirUrl.substring(0, 80)}`);
+        logger.warn({ dirUrl }, "dahmermovies: Cloudflare challenge detected");
+        return null;
+      }
       listingCache.set(dirUrl, { html, ts: Date.now() });
       return html;
     } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        const status = err.response?.status;
-        if (status === 404 || status === 403) return null;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("404")) return null;
+      if (msg.includes("403")) {
+        logProviderError("dahmermovies", `HTTP 403 Forbidden — ${dirUrl.substring(0, 80)}`);
+        return null;
       }
+      logProviderError("dahmermovies", err instanceof Error ? err : new Error(String(err)));
       logger.warn({ err, dirUrl }, "dahmermovies: listing fetch failed");
       return null;
     } finally {

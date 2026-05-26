@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import CryptoJS from "crypto-js";
 import { logger } from "../lib/logger.js";
+import { logProviderError } from "../lib/debug-log.js";
 
 const PROVIDER_NAME = "ZinkMovies";
 let MAIN_URL = "https://new8.zinkmovies.biz";
@@ -34,6 +35,13 @@ async function resolveDomain(): Promise<void> {
 
 void resolveDomain();
 
+function isCfBlock(text: string): boolean {
+  return text.includes("Just a moment") ||
+    text.includes("_cf_chl_opt") ||
+    text.includes("cf-browser-verification") ||
+    (text.includes("cloudflare") && text.includes("challenge"));
+}
+
 async function fetchSafe(url: string, options: RequestInit = {}): Promise<Response | null> {
   try {
     const ctrl = new AbortController();
@@ -41,8 +49,15 @@ async function fetchSafe(url: string, options: RequestInit = {}): Promise<Respon
     const merged: RequestInit = { ...options, headers: { ...HEADERS, ...(options.headers as Record<string, string> || {}) }, signal: ctrl.signal };
     const res = await fetch(url, merged);
     clearTimeout(timer);
+    if (!res.ok) {
+      const snippet = await res.clone().text().then((t) => t.substring(0, 200)).catch(() => "");
+      const cfMsg = isCfBlock(snippet) ? " [Cloudflare block]" : "";
+      logProviderError("zinkmovies", `HTTP ${res.status}${cfMsg} — ${url.substring(0, 80)}`);
+      logger.error(`[${PROVIDER_NAME}] HTTP ${res.status}${cfMsg}: ${url.substring(0, 100)}`);
+    }
     return res;
   } catch (e: any) {
+    logProviderError("zinkmovies", `${e.message} — ${url.substring(0, 80)}`);
     logger.error(`[${PROVIDER_NAME}] fetchSafe error: ${url.substring(0, 100)} -> ${e.message}`);
     return null;
   }
@@ -419,5 +434,9 @@ export async function getStreams(tmdbId: string, mediaType: string, season?: num
     if (bestMatch && bestScore > 0.3) pageStreams = await extractFromPage(bestMatch.href, info.title, isTv, safeSeason, safeEpisode);
     const embedStreams = await embedPromise;
     return dedupe([...embedStreams, ...pageStreams]);
-  } catch (e: any) { logger.error(`[${PROVIDER_NAME}] Fatal: ${e.message}`); return []; }
+  } catch (e: any) {
+    logProviderError("zinkmovies", e instanceof Error ? e : new Error(String(e)));
+    logger.error(`[${PROVIDER_NAME}] Fatal: ${e.message}`);
+    return [];
+  }
 }

@@ -289,18 +289,19 @@ router.get("/debug/health/data", async (req, res) => {
   const base = `http://localhost:${port}/api`;
 
   const t0 = Date.now();
+  const HC_HEADERS = { "X-Health-Check": "1" };
   const [movieR, seriesR, animeR] = await Promise.allSettled([
     axios.get<{ streams: { name?: string }[] }>(
       `${base}/stream/movie/tt1375666.json`,   // Inception
-      { timeout: 40000 },
+      { timeout: 40000, headers: HC_HEADERS },
     ),
     axios.get<{ streams: { name?: string }[] }>(
       `${base}/stream/series/tt0903747%3A1%3A1.json`, // Breaking Bad S01E01
-      { timeout: 40000 },
+      { timeout: 40000, headers: HC_HEADERS },
     ),
     axios.get<{ streams: { name?: string }[] }>(
       `${base}/stream/series/tt0388629%3A1%3A1.json`,  // One Piece S01E01
-      { timeout: 40000 },
+      { timeout: 40000, headers: HC_HEADERS },
     ),
   ]);
   const probeMs = Date.now() - t0;

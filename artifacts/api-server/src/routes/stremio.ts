@@ -1538,8 +1538,8 @@ async function getRareAnimeStreamsByTitle(
     };
 
     const [allMetas, atoonItems] = await Promise.all([
-      withTimeoutRA(raGetAllCatalogItems(), 15_000),
-      withTimeoutRA(raBuildAtoonCatalog(), 15_000),
+      withTimeoutRA(raGetAllCatalogItems(), 40_000),
+      withTimeoutRA(raBuildAtoonCatalog(), 40_000),
     ]);
 
     // "All movies" collection entries (e.g. "Doraemon All Movies") must NOT be matched
@@ -1560,6 +1560,10 @@ async function getRareAnimeStreamsByTitle(
       (atoonItems ?? []).find((m) => tokeniseRA(m.name) === titleTok) ||
       (atoonItems ?? []).find((m) => isMatch(m.name) && notMovieColl(m.name)) ||
       (atoonItems ?? []).find((m) => isMatch(m.name));
+
+    if (allMetas === null) {
+      logProviderError("rareanime", "Catalog build timed out (>40s) — site may be slow or unreachable");
+    }
 
     const matchedId = rareMatch?.id || atoonMatch?.id;
     if (!matchedId) {
@@ -1772,7 +1776,8 @@ router.get("/stream/:type/:id.json", async (req, res) => {
       const episode = parts[2] !== undefined ? parseInt(parts[2], 10) : 1;
 
       const ckey = streamCacheKey(imdbId, type, season, episode);
-      const cached = getStreamCache(ckey);
+      const skipCache = req.headers["x-health-check"] === "1";
+      const cached = skipCache ? null : getStreamCache(ckey);
       if (cached) { res.json({ streams: cached }); return; }
 
       const meta = await resolveMeta(imdbId, contentType);
@@ -1851,7 +1856,8 @@ router.get("/stream/:type/:id.json", async (req, res) => {
       const episode = parts[3] !== undefined ? parseInt(parts[3], 10) : 1;
 
       const ckey = streamCacheKey(id, type, season, episode);
-      const cached = getStreamCache(ckey);
+      const skipCache = req.headers["x-health-check"] === "1";
+      const cached = skipCache ? null : getStreamCache(ckey);
       if (cached) { res.json({ streams: cached }); return; }
 
       const meta = await resolveMetaFromTmdbId(numericTmdbId, contentType);

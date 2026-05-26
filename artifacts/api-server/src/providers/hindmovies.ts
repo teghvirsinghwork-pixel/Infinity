@@ -2,6 +2,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import crypto from "node:crypto";
 import { logger } from "../lib/logger.js";
+import { logProviderError } from "../lib/debug-log.js";
 
 // ─── HTTP client ──────────────────────────────────────────────────────────────
 
@@ -72,6 +73,13 @@ async function getMovieMeta(imdbId: string): Promise<{ title: string; year: stri
 }
 
 // ─── Scraper ──────────────────────────────────────────────────────────────────
+
+function isCfPage(html: string): boolean {
+  return html.includes("Just a moment") ||
+    html.includes("_cf_chl_opt") ||
+    html.includes("cf-browser-verification") ||
+    (html.includes("cloudflare") && html.includes("challenge"));
+}
 
 const BASE_URL = "https://hindmovie.icu";
 
@@ -162,8 +170,22 @@ function parseMovieList(html: string): SiteMovie[] {
 
 export async function searchMovies(query: string, page = 1): Promise<SiteMovie[]> {
   const url = `${BASE_URL}/page/${page}/?s=${encodeURIComponent(query)}`;
-  const html = (await http.get<string>(url)).data;
-  return parseMovieList(html);
+  try {
+    const res = await http.get<string>(url);
+    const html = res.data;
+    if (isCfPage(html)) {
+      logProviderError("hindmovies", `Cloudflare block on search: ${url}`);
+      logger.warn({ url }, "HindMoviez: Cloudflare challenge detected");
+      return [];
+    }
+    return parseMovieList(html);
+  } catch (err: unknown) {
+    const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+    const msg = `HTTP ${status ?? "err"} on ${url.substring(0, 80)}`;
+    logProviderError("hindmovies", msg);
+    logger.warn({ err, url }, "HindMoviez: searchMovies failed");
+    return [];
+  }
 }
 
 export async function getMoviesByPage(page = 1): Promise<SiteMovie[]> {
@@ -591,6 +613,7 @@ export async function getStreams(
     logger.info({ imdbId, count: streams.length }, "HindMoviez: done");
     return streams;
   } catch (err) {
+    logProviderError("hindmovies", err instanceof Error ? err : new Error(String(err)));
     logger.error({ err, imdbId }, "HindMoviez: provider error");
     return [];
   }
