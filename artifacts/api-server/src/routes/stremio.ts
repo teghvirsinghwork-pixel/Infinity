@@ -1795,7 +1795,7 @@ router.get("/stream/:type/:id.json", async (req, res) => {
       if (sfResult.status === "rejected") logger.error({ err: sfResult.reason, imdbId }, "StreamFlix: crashed");
       if (fkResult.status === "rejected") logger.error({ err: fkResult.reason, imdbId }, "4KHDHub: crashed");
 
-      const raw = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...sfStreams, ...ctStreams, ...dmStreams, ...hmStreams, ...mbStreams, ...hdStreams, ...zmStreams, ...fkStreams]) as Record<string, unknown>[]);
+      const raw = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...sfStreams, ...ctStreams, ...dmStreams, ...mbStreams, ...hmStreams, ...fkStreams, ...hdStreams, ...zmStreams]) as Record<string, unknown>[]);
       const combined = premiumFormat(raw, meta.title, contentType, season, episode);
       logger.info(
         { imdbId, title: meta.title, as: asStreams.length, ra: raStreams.length, ad: adStreams.length, nm: nmStreams.length, mb: mbStreams.length, hm: hmStreams.length, hd: hdStreams.length, zm: zmStreams.length, ct: ctStreams.length, dm: dmStreams.length, sf: sfStreams.length, fk: fkStreams.length, combined: combined.length },
@@ -1875,7 +1875,7 @@ router.get("/stream/:type/:id.json", async (req, res) => {
       if (sfResult.status === "rejected") logger.error({ err: sfResult.reason, tmdbId: numericTmdbId }, "StreamFlix: crashed");
       if (fkResult.status === "rejected") logger.error({ err: fkResult.reason, tmdbId: numericTmdbId }, "4KHDHub: crashed");
 
-      const raw2 = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...sfStreams, ...ctStreams, ...dmStreams, ...hmStreams, ...mbStreams, ...hdStreams, ...zmStreams, ...fkStreams]) as Record<string, unknown>[]);
+      const raw2 = dedup(([...asStreams, ...raStreams, ...adStreams, ...nmStreams, ...sfStreams, ...ctStreams, ...dmStreams, ...mbStreams, ...hmStreams, ...fkStreams, ...hdStreams, ...zmStreams]) as Record<string, unknown>[]);
       const combined = premiumFormat(raw2, meta.title, contentType, season, episode);
       logger.info(
         { tmdbId: numericTmdbId, title: meta.title, as: asStreams.length, ra: raStreams.length, ad: adStreams.length, nm: nmStreams.length, mb: mbStreams.length, hm: hmStreams.length, hd: hdStreams.length, zm: zmStreams.length, ct: ctStreams.length, dm: dmStreams.length, sf: sfStreams.length, fk: fkStreams.length, combined: combined.length },

@@ -9,11 +9,11 @@
  *   4 = streamflix
  *   5 = castletv
  *   6 = dahmermovies
- *   7 = hindmovies
- *   8 = moviebox
- *   9 = hdhub4u
- *  10 = zinkmovies
- *  11 = fourkdhub
+ *   7 = moviebox
+ *   8 = hindmovies
+ *   9 = fourkdhub
+ *  10 = hdhub4u
+ *  11 = zinkmovies
  *
  * The config mask is a 12-character string of '0' or '1'.
  * '1' means enabled, '0' means disabled.
@@ -28,11 +28,11 @@ export const PROVIDER_LIST = [
   "streamflix",
   "castletv",
   "dahmermovies",
-  "hindmovies",
   "moviebox",
+  "hindmovies",
+  "fourkdhub",
   "hdhub4u",
   "zinkmovies",
-  "fourkdhub",
 ] as const;
 
 export type ProviderKey = (typeof PROVIDER_LIST)[number];

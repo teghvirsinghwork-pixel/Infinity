@@ -187,5 +187,5 @@ export const CATALOG_MAP: Record<string, string> = {
 };
 
 // Provider config — order must match PROVIDER_LIST in lib/provider-config.ts
-// Index: 0=animesalt 1=rareanime 2=animedekho 3=netmirror 4=streamflix 5=castletv 6=dahmermovies 7=hindmovies 8=moviebox 9=hdhub4u 10=zinkmovies 11=fourkdhub
+// Index: 0=animesalt 1=rareanime 2=animedekho 3=netmirror 4=streamflix 5=castletv 6=dahmermovies 7=moviebox 8=hindmovies 9=fourkdhub 10=hdhub4u 11=zinkmovies
 export const ALL_ENABLED_MASK = "111111111111";

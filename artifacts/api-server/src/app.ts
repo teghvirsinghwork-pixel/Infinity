@@ -117,6 +117,15 @@ function serveLandingPage(req: express.Request, res: express.Response) {
       desc: "High-quality 1080p and 4K direct file streams with strict size filtering for premium sources.",
     },
     {
+      key: "moviebox",
+      name: "MovieBox",
+      emoji: "🍿",
+      color: "#f59e0b",
+      glow: "rgba(245,158,11,0.3)",
+      tags: ["Multi-Audio", "Hindi", "Bengali", "English"],
+      desc: "Rich multi-audio library with Original, Hindi, English, Bengali and more audio tracks.",
+    },
+    {
       key: "hindmovies",
       name: "HindMoviez",
       emoji: "🎞️",
@@ -126,13 +135,13 @@ function serveLandingPage(req: express.Request, res: express.Response) {
       desc: "Bollywood, Hollywood & Hindi-dubbed movies and series in 480p, 720p, 1080p & 4K.",
     },
     {
-      key: "moviebox",
-      name: "MovieBox",
-      emoji: "🍿",
-      color: "#f59e0b",
-      glow: "rgba(245,158,11,0.3)",
-      tags: ["Multi-Audio", "Hindi", "Bengali", "English"],
-      desc: "Rich multi-audio library with Original, Hindi, English, Bengali and more audio tracks.",
+      key: "fourkdhub",
+      name: "4KHDHub",
+      emoji: "🔷",
+      color: "#0ea5e9",
+      glow: "rgba(14,165,233,0.3)",
+      tags: ["4K", "1080p", "HubCloud", "Direct Files"],
+      desc: "4K and 1080p direct file streams via HubCloud and HubDrive with quality filtering.",
     },
     {
       key: "hdhub4u",
@@ -151,15 +160,6 @@ function serveLandingPage(req: express.Request, res: express.Response) {
       glow: "rgba(0,201,167,0.3)",
       tags: ["Bollywood", "South", "Multi-Lang", "4K"],
       desc: "Bollywood, Hollywood & South Indian content with AES-encrypted embed support.",
-    },
-    {
-      key: "fourkdhub",
-      name: "4KHDHub",
-      emoji: "🔷",
-      color: "#0ea5e9",
-      glow: "rgba(14,165,233,0.3)",
-      tags: ["4K", "1080p", "HubCloud", "Direct Files"],
-      desc: "4K and 1080p direct file streams via HubCloud and HubDrive with quality filtering.",
     },
   ];
 
