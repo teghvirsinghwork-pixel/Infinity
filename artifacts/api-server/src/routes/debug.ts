@@ -4,6 +4,7 @@ import { getEntries, getResolveEvents, clearEntries, getProviderErrors, clearPro
 import { PROVIDER_LIST } from "../lib/provider-config.js";
 import { clearStreamCache, streamCacheStats } from "../lib/stream-cache.js";
 import { proxyConfigured, proxyUrl } from "../lib/proxy-agent.js";
+import { proxyPoolStatus } from "../lib/proxy-pool.js";
 
 const router = Router();
 
@@ -347,6 +348,12 @@ router.get("/debug/health/data", async (req, res) => {
   });
 });
 
+// ─── Free proxy pool status ───────────────────────────────────────────────────
+
+router.get("/debug/proxy-pool", (_req, res) => {
+  res.json(proxyPoolStatus());
+});
+
 // ─── Clear stream cache + provider errors (useful after geo-block changes) ───
 
 router.post("/debug/clear-cache", (_req, res) => {
@@ -536,11 +543,17 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,
   </div>
 
   <!-- PROXY BANNER -->
-  <div class="proxy-banner proxy-${proxyConfigured ? "on" : "off"}">
+  <div class="proxy-banner proxy-on" style="margin-bottom:8px">
+    <span class="proxy-dot proxy-dot-on"></span><strong>Chrome TLS active</strong> — JA3/JA4 fingerprint spoofed to Chrome 137 for all fetch() &amp; axios calls. Fixes basic Cloudflare bot detection (AnimeSalt, RareAnime, AnimeDekho, HindMovies, ZinkMovies).
+  </div>
+  <div class="proxy-banner proxy-${proxyConfigured ? "on" : "off"}" style="margin-bottom:8px">
     ${proxyConfigured
-      ? `<span class="proxy-dot proxy-dot-on"></span><strong>Proxy active</strong> — all outbound fetch() and axios calls are routed through <code>${proxyUrl.replace(/\/\/.*@/, "//***@")}</code>`
-      : `<span class="proxy-dot proxy-dot-off"></span><strong>No proxy configured</strong> — geo-blocked providers (AnimeSalt, RareAnime, AnimeDekho, MovieBox, HindMovies, ZinkMovies) will fail on cloud IPs. Set <code>HTTPS_PROXY=http://user:pass@host:port</code> on Render to fix.`
+      ? `<span class="proxy-dot proxy-dot-on"></span><strong>HTTPS proxy active</strong> — all requests routed through <code>${proxyUrl.replace(/\/\/.*@/, "//***@")}</code>`
+      : `<span class="proxy-dot proxy-dot-off"></span><strong>No HTTPS proxy</strong> — optional. Set <code>HTTPS_PROXY=http://user:pass@host:port</code> on Render for full geo-bypass.`
     }
+  </div>
+  <div class="proxy-banner proxy-on" id="pool-banner">
+    <span class="proxy-dot" id="pool-dot" style="background:#888"></span><strong>Free proxy pool:</strong> <span id="pool-status">loading…</span> — used for geo-restricted APIs (MovieBox). Auto-refreshes every 25 min from ProxyScrape.
   </div>
 
   <!-- STATS -->
@@ -605,6 +618,25 @@ async function clearCache() {
     alert('Clear failed: ' + e.message);
   }
 }
+
+async function refreshPoolStatus() {
+  try {
+    const r = await fetch('/api/debug/proxy-pool');
+    const d = await r.json();
+    const dot = document.getElementById('pool-dot');
+    const lbl = document.getElementById('pool-status');
+    if (d.size > 0) {
+      dot.style.background = '#22d3a0';
+      dot.style.boxShadow = '0 0 6px #22d3a0';
+      lbl.textContent = d.size + ' working proxies (refreshed ' + d.lastRefreshAgo + ')';
+    } else {
+      dot.style.background = '#fb923c';
+      dot.style.boxShadow = '0 0 6px #fb923c';
+      lbl.textContent = d.lastRefreshAgo === 'never' ? 'initialising…' : '0 working proxies (last attempt ' + d.lastRefreshAgo + ')';
+    }
+  } catch {}
+}
+window.addEventListener('load', () => { refreshPoolStatus(); setInterval(refreshPoolStatus, 15000); });
 
 async function runCheck() {
   const btn = document.getElementById('runBtn');

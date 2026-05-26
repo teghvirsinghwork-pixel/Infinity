@@ -5,6 +5,7 @@ import {
   randomBrandModel,
 } from "./moviebox-crypto.js";
 import { logger } from "./logger.js";
+import { proxyFetch } from "./proxy-pool.js";
 
 const MAIN_URL = "https://api3.aoneroom.com";
 const DEVICE_ID = generateDeviceId();
@@ -104,7 +105,7 @@ async function apiGet(
   token?: string,
 ): Promise<{ data: unknown; responseToken?: string }> {
   const headers = mobileHeaders("GET", url, undefined, token);
-  const response = await fetch(url, { headers });
+  const response = await proxyFetch(url, { headers });
 
   if (!response.ok) {
     const text = await response.text();
@@ -133,7 +134,7 @@ async function apiPost(
   token?: string,
 ): Promise<{ data: unknown; responseToken?: string }> {
   const headers = mobileHeaders("POST", url, body, token);
-  const response = await fetch(url, {
+  const response = await proxyFetch(url, {
     method: "POST",
     headers,
     body,

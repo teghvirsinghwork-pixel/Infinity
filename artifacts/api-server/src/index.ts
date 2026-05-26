@@ -2,6 +2,7 @@ import "./lib/proxy-agent.js";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { getAllCatalogItems, buildAtoonCatalog } from "./providers/rareanime/scraper.js";
+import { startProxyPool } from "./lib/proxy-pool.js";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,10 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Start free proxy pool in background (used for geo-restricted APIs like MovieBox).
+  // Starts 5s after server is up so it doesn't slow the initial response.
+  startProxyPool();
 
   // Pre-warm RareAnime catalogs in the background so they are ready
   // before the first IMDb/TMDB/Cinemeta stream request arrives.
