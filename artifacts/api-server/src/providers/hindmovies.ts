@@ -595,3 +595,59 @@ export async function getStreams(
     return [];
   }
 }
+
+// ─── Direct URL-based stream fetch (for hindmoviez: catalog IDs) ──────────────
+
+export async function getStreamsByUrl(
+  pageUrl: string,
+  type: "movie" | "series",
+  season?: number,
+  episode?: number,
+): Promise<StremioStream[]> {
+  try {
+    const streams: StremioStream[] = [];
+
+    if (type === "movie") {
+      const signedLinks = await getMovieSignedLinks(pageUrl);
+      const results = await Promise.allSettled(
+        signedLinks.map(({ signedUrl, qualityLabel }) =>
+          resolveSignedUrl(signedUrl, qualityLabel),
+        ),
+      );
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          for (const s of result.value) {
+            streams.push({
+              name: s.name,
+              title: s.title,
+              url: s.url,
+              behaviorHints: { notWebReady: s.notWebReady },
+            });
+          }
+        }
+      }
+    } else if (type === "series" && season !== undefined && episode !== undefined) {
+      const signedUrl = await getSeriesEpisodeSignedLink(pageUrl, season, episode);
+      if (signedUrl) {
+        const resolved = await resolveSignedUrl(signedUrl, `S${season}E${episode}`);
+        for (const s of resolved) {
+          streams.push({
+            name: s.name,
+            title: s.title,
+            url: s.url,
+            behaviorHints: {
+              notWebReady: s.notWebReady,
+              bingeGroup: `hindmoviez-url-s${season}`,
+            },
+          });
+        }
+      }
+    }
+
+    logger.info({ pageUrl, type, count: streams.length }, "HindMoviez: getStreamsByUrl done");
+    return streams;
+  } catch (err) {
+    logger.error({ err, pageUrl }, "HindMoviez: getStreamsByUrl error");
+    return [];
+  }
+}

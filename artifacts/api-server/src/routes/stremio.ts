@@ -24,7 +24,7 @@ import {
 } from "../providers/rareanime/scraper.js";
 import { extractStreamFromArgon } from "../providers/rareanime/argon-extractor.js";
 import { fetchNetmirrorStreams } from "../providers/netmirror.js";
-import { getStreams as hindmoviezGetStreams, getCatalog as hindmoviezGetCatalog } from "../providers/hindmovies.js";
+import { getStreams as hindmoviezGetStreams, getCatalog as hindmoviezGetCatalog, getStreamsByUrl as hindmoviezGetStreamsByUrl } from "../providers/hindmovies.js";
 import {
   getHomepage,
   searchContent,
@@ -1690,6 +1690,29 @@ router.get("/stream/:type/:id.json", async (req, res) => {
       return;
     }
 
+    // ── Native hindmoviez: IDs — HindMoviez catalog items ────────────────────
+    if (id.startsWith("hindmoviez:")) {
+      try {
+        const hmParts   = id.split(":");
+        const pageUrl   = Buffer.from(hmParts[1]!, "base64url").toString("utf-8");
+        const hmSeason  = hmParts[2] !== undefined ? parseInt(hmParts[2], 10) : undefined;
+        const hmEpisode = hmParts[3] !== undefined ? parseInt(hmParts[3], 10) : undefined;
+        const hmType    = type as "movie" | "series";
+        const streams   = await hindmoviezGetStreamsByUrl(
+          pageUrl,
+          hmType,
+          hmSeason ?? (hmType === "series" ? 1 : undefined),
+          hmEpisode ?? (hmType === "series" ? 1 : undefined),
+        );
+        logger.info({ id, count: streams.length }, "Stremio: hindmoviez native streams");
+        res.json({ streams: streams as Record<string, unknown>[] });
+      } catch (err) {
+        logger.error({ err, id }, "HindMoviez: native stream error");
+        res.json({ streams: [] });
+      }
+      return;
+    }
+
     // ── Native animedekho: IDs — AnimeDekho native + AnimeSalt by title ──────
     if (id.startsWith("animedekho:")) {
       const seMatch = id.match(/:(\d+):(\d+)$/);
@@ -1841,7 +1864,7 @@ router.get("/stream/:type/:id.json", async (req, res) => {
         ep2.has("netmirror") ? fetchNetmirrorStreams(type as "movie" | "series", nmId, season, episode) : Promise.resolve([]),
         ep2.has("moviebox") ? getMovieBoxStreams(meta, season, episode, req, id) : Promise.resolve([]),
         (ep2.has("hindmovies") && hasImdb) ? hindmoviezGetStreams(type as "movie" | "series", meta.imdbId, season, episode) : Promise.resolve([]),
-        ep2.has("hdhub4u") ? getHDHub4UStreams(meta.imdbId, type, meta, season, episode) : Promise.resolve([]),
+        (ep2.has("hdhub4u") && hasImdb) ? getHDHub4UStreams(meta.imdbId, type, meta, season, episode) : Promise.resolve([]),
         (ep2.has("zinkmovies") && hasImdb) ? getZinkMoviesStreams(meta.imdbId, type, season, episode) : Promise.resolve([]),
         (ep2.has("castletv") && hasImdb) ? getCastleTvStreams(meta.imdbId, type, meta.title, meta.year, season, episode) : Promise.resolve([]),
         ep2.has("dahmermovies") ? getDahmerMoviesStreams(meta.title, meta.year, type, season, episode) : Promise.resolve([]),

@@ -166,9 +166,9 @@ export const manifest = {
   resources: [
     "catalog",
     { name: "meta", types: ["movie", "series"], idPrefixes: ["hd4u:", "animedekho:", "rareanime:", "atoon:"] },
-    { name: "stream", types: ["movie", "series"], idPrefixes: ["tt", "hd4u:", "tmdb:", "animedekho:", "rareanime:", "atoon:"] },
+    { name: "stream", types: ["movie", "series"], idPrefixes: ["tt", "hd4u:", "tmdb:", "animedekho:", "rareanime:", "atoon:", "hindmoviez:"] },
   ],
-  idPrefixes: ["tt", "hd4u:", "tmdb:", "animedekho:", "rareanime:", "atoon:"],
+  idPrefixes: ["tt", "hd4u:", "tmdb:", "animedekho:", "rareanime:", "atoon:", "hindmoviez:"],
   behaviorHints: {
     adult: false,
     p2p: false,
