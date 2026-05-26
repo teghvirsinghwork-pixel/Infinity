@@ -61,3 +61,10 @@ export function setStreamCache(
 export function streamCacheStats(): { size: number; maxEntries: number } {
   return { size: cache.size, maxEntries: MAX_ENTRIES };
 }
+
+export function clearStreamCache(): number {
+  const count = cache.size;
+  cache.clear();
+  logger.info({ cleared: count }, "StreamCache: manually cleared");
+  return count;
+}

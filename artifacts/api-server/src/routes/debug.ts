@@ -1,7 +1,9 @@
 import { Router } from "express";
 import axios from "axios";
-import { getEntries, getResolveEvents, clearEntries, getProviderErrors } from "../lib/debug-log.js";
+import { getEntries, getResolveEvents, clearEntries, getProviderErrors, clearProviderErrors } from "../lib/debug-log.js";
 import { PROVIDER_LIST } from "../lib/provider-config.js";
+import { clearStreamCache, streamCacheStats } from "../lib/stream-cache.js";
+import { proxyConfigured, proxyUrl } from "../lib/proxy-agent.js";
 
 const router = Router();
 
@@ -345,6 +347,15 @@ router.get("/debug/health/data", async (req, res) => {
   });
 });
 
+// ─── Clear stream cache + provider errors (useful after geo-block changes) ───
+
+router.post("/debug/clear-cache", (_req, res) => {
+  const cleared = clearStreamCache();
+  clearProviderErrors();
+  const stats = streamCacheStats();
+  res.json({ ok: true, clearedEntries: cleared, cacheSize: stats.size, message: `Cleared ${cleared} cached stream results and all provider errors.` });
+});
+
 // ─── Health check HTML page ──────────────────────────────────────────────────
 
 router.get("/debug/health", (_req, res) => {
@@ -460,6 +471,19 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,
 .card-bar{height:2px;background:rgba(255,255,255,.05);border-radius:2px;margin-top:4px;overflow:hidden}
 .card-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--ok));border-radius:2px;transition:width .5s ease}
 .card-error{margin-top:8px;padding:7px 9px;border-radius:7px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.18);font-size:10px;color:#f87171;font-family:'SF Mono',ui-monospace,monospace;line-height:1.5;word-break:break-word;white-space:pre-wrap}
+
+/* PROXY BANNER */
+.proxy-banner{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;font-size:11.5px;margin-bottom:20px;line-height:1.5}
+.proxy-on{background:rgba(34,211,160,.06);border:1px solid rgba(34,211,160,.2);color:#a7f3d0}
+.proxy-off{background:rgba(251,146,60,.06);border:1px solid rgba(251,146,60,.2);color:#fed7aa}
+.proxy-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.proxy-dot-on{background:#22d3a0;box-shadow:0 0 6px #22d3a0}
+.proxy-dot-off{background:#fb923c;box-shadow:0 0 6px #fb923c}
+.proxy-banner code{font-family:'SF Mono',ui-monospace,monospace;font-size:10px;opacity:.8;background:rgba(255,255,255,.07);padding:1px 5px;border-radius:4px}
+
+/* CLEAR BUTTON */
+.clear-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(248,113,113,.1);color:#f87171;border:1px solid rgba(248,113,113,.2);padding:8px 14px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s}
+.clear-btn:hover{background:rgba(248,113,113,.18);border-color:rgba(248,113,113,.35)}
 .card-error-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(248,113,113,.55);margin-bottom:3px}
 .card-error-count{font-size:9px;color:rgba(248,113,113,.5);margin-top:4px}
 
@@ -503,11 +527,20 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,
       <p>Probes all 12 providers with real test titles — a movie, a series, and an anime. Streams are attributed to each provider and shown below.</p>
     </div>
     <div class="hero-right">
+      <button class="clear-btn" onclick="clearCache()" title="Clear stream cache &amp; error logs">🗑 Clear Cache</button>
       <button class="run-btn" id="runBtn" onclick="runCheck()">
         <span class="icon">▶ Run Check</span>
         <span class="spin">⟳</span>&nbsp;Running…
       </button>
     </div>
+  </div>
+
+  <!-- PROXY BANNER -->
+  <div class="proxy-banner proxy-${proxyConfigured ? "on" : "off"}">
+    ${proxyConfigured
+      ? `<span class="proxy-dot proxy-dot-on"></span><strong>Proxy active</strong> — all outbound fetch() and axios calls are routed through <code>${proxyUrl.replace(/\/\/.*@/, "//***@")}</code>`
+      : `<span class="proxy-dot proxy-dot-off"></span><strong>No proxy configured</strong> — geo-blocked providers (AnimeSalt, RareAnime, AnimeDekho, MovieBox, HindMovies, ZinkMovies) will fail on cloud IPs. Set <code>HTTPS_PROXY=http://user:pass@host:port</code> on Render to fix.`
+    }
   </div>
 
   <!-- STATS -->
@@ -561,6 +594,16 @@ ${cards}
 <script>
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function clearCache() {
+  try {
+    const r = await fetch('/api/debug/clear-cache', { method: 'POST' });
+    const d = await r.json();
+    alert(d.message || 'Cache cleared!');
+  } catch(e) {
+    alert('Clear failed: ' + e.message);
+  }
 }
 
 async function runCheck() {

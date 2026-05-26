@@ -1,3 +1,4 @@
+import "./lib/proxy-agent.js";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { getAllCatalogItems, buildAtoonCatalog } from "./providers/rareanime/scraper.js";
