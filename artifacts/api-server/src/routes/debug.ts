@@ -3,7 +3,7 @@ import axios from "axios";
 import { getEntries, getResolveEvents, clearEntries, getProviderErrors, clearProviderErrors } from "../lib/debug-log.js";
 import { PROVIDER_LIST } from "../lib/provider-config.js";
 import { clearStreamCache, streamCacheStats } from "../lib/stream-cache.js";
-import { proxyConfigured, proxyUrl } from "../lib/proxy-agent.js";
+import { proxyConfigured, proxyUrl, cfWorkerEnabled, cfWorkerUrl } from "../lib/proxy-agent.js";
 import { proxyPoolStatus } from "../lib/proxy-pool.js";
 
 const router = Router();
@@ -544,16 +544,22 @@ body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,
 
   <!-- PROXY BANNER -->
   <div class="proxy-banner proxy-on" style="margin-bottom:8px">
-    <span class="proxy-dot proxy-dot-on"></span><strong>Chrome TLS active</strong> — JA3/JA4 fingerprint spoofed to Chrome 137 for all fetch() &amp; axios calls. Fixes basic Cloudflare bot detection (AnimeSalt, RareAnime, AnimeDekho, HindMovies, ZinkMovies).
+    <span class="proxy-dot proxy-dot-on"></span><strong>Chrome TLS active</strong> — JA3/JA4 fingerprint spoofed to Chrome 137 for all fetch() &amp; axios calls (fixes CF bot detection for non-cloud IPs).
+  </div>
+  <div class="proxy-banner proxy-${cfWorkerEnabled ? "on" : "off"}" style="margin-bottom:8px">
+    ${cfWorkerEnabled
+      ? `<span class="proxy-dot proxy-dot-on"></span><strong>CF Worker active</strong> — CF-blocked providers (AnimeSalt, RareAnime, AnimeDekho, ZinkMovies, DahmerMovies, MovieBox) routed through <code>${cfWorkerUrl}</code>`
+      : `<span class="proxy-dot proxy-dot-off"></span><strong>CF Worker not set</strong> — CF-protected providers will fail on cloud IPs.
+         Set <code>CF_WORKER_URL</code> on Render: (1) go to <a href="https://workers.cloudflare.com" target="_blank" style="color:#61dafb">workers.cloudflare.com</a>,
+         (2) create a Worker and paste <code>cloudflare-worker/proxy.js</code>,
+         (3) copy the <code>*.workers.dev</code> URL and set it as <code>CF_WORKER_URL</code>.`
+    }
   </div>
   <div class="proxy-banner proxy-${proxyConfigured ? "on" : "off"}" style="margin-bottom:8px">
     ${proxyConfigured
       ? `<span class="proxy-dot proxy-dot-on"></span><strong>HTTPS proxy active</strong> — all requests routed through <code>${proxyUrl.replace(/\/\/.*@/, "//***@")}</code>`
-      : `<span class="proxy-dot proxy-dot-off"></span><strong>No HTTPS proxy</strong> — optional. Set <code>HTTPS_PROXY=http://user:pass@host:port</code> on Render for full geo-bypass.`
+      : `<span class="proxy-dot proxy-dot-off"></span><strong>No HTTPS proxy</strong> — optional fallback. Set <code>HTTPS_PROXY=http://user:pass@host:port</code> for residential proxy support.`
     }
-  </div>
-  <div class="proxy-banner proxy-on" id="pool-banner">
-    <span class="proxy-dot" id="pool-dot" style="background:#888"></span><strong>Free proxy pool:</strong> <span id="pool-status">loading…</span> — used for geo-restricted APIs (MovieBox). Auto-refreshes every 25 min from ProxyScrape.
   </div>
 
   <!-- STATS -->

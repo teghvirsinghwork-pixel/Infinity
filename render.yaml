@@ -11,7 +11,6 @@ services:
       - key: NODE_ENV
         value: production
 
-      # Auto-generated secret for session signing — Render creates this once and keeps it stable.
       - key: SESSION_SECRET
         generateValue: true
 
@@ -26,6 +25,23 @@ services:
         sync: false
 
       # Optional: override the HDHub4U base URL if the default stops working.
-      # Default: https://new1.hdhub4u.limo
       - key: HDHUB4U_URL
+        sync: false
+
+      # ── Cloudflare Worker proxy (REQUIRED for full provider support on cloud IPs) ──
+      # Routes CF-blocked providers (AnimeSalt, RareAnime, AnimeDekho, ZinkMovies,
+      # DahmerMovies, MovieBox) through a Cloudflare Worker so requests originate
+      # from Cloudflare's IP range instead of this server's AWS IP.
+      #
+      # Setup (free, 5 min):
+      #   1. Go to https://workers.cloudflare.com
+      #   2. Create a new Worker → paste cloudflare-worker/proxy.js → Deploy
+      #   3. Copy the *.workers.dev URL and set it here
+      - key: CF_WORKER_URL
+        sync: false
+
+      # Optional: full HTTPS proxy URL for ALL outbound requests.
+      # Format: http://user:pass@host:port
+      # Use a residential proxy service (BrightData, IPRoyal, etc.) for best results.
+      - key: HTTPS_PROXY
         sync: false
